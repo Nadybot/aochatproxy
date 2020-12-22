@@ -94,9 +94,9 @@ pub fn load_config() -> Result<Config, ConfigError> {
         .map_err(|_| ConfigError::NotBoolean(String::from("RELAY_BY_ID")))?;
 
     // We cannot send tells in this case
-    if !send_tells_over_main && account_data.is_empty() {
+    if spam_bot_support & (!send_tells_over_main && account_data.is_empty()) {
         return Err(ConfigError::InvalidConfig(String::from(
-            "When SEND_TELLS_OVER_MAIN is disabled, at least one slave needs to be configured",
+            "When SPAM_BOT_SUPPORT is true and SEND_TELLS_OVER_MAIN is disabled, at least one slave needs to be configured",
         )));
     }
 

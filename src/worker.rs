@@ -23,11 +23,8 @@ async fn worker_reader(
     notify_wait: Arc<Notify>,
 ) {
     notify_wait.notified().await;
-    loop {
-        let packet = match packet_reader.recv().await {
-            Some(v) => v,
-            None => break,
-        };
+
+    while let Some(packet) = packet_reader.recv().await {
         debug!("Sending {:?} packet from worker #{}", packet.0, id);
 
         if log_enabled!(Trace) {
@@ -56,9 +53,8 @@ pub async fn worker_main(
     let notify2 = notify.clone();
     spawn(worker_reader(id, packet_reader, socket_sender, notify2));
 
-    loop {
+    while let Ok((packet_type, body)) = socket.read_raw_packet().await {
         // Read a packet and handle it if interested
-        let (packet_type, body) = socket.read_raw_packet().await?;
         debug!("Received {:?} packet for worker #{}", packet_type, id);
 
         if log_enabled!(Trace) {

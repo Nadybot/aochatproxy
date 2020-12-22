@@ -15,6 +15,7 @@ SERVER_ADDRESS=chat.d1.funcom.com:7105
 SPAM_BOT_SUPPORT=true
 SEND_TELLS_OVER_MAIN=false
 RELAY_SLAVE_TELLS=false
+RELAY_BY_ID=false
 
 SLAVE1_USERNAME=myslave
 SLAVE1_PASSWORD=mypass
@@ -24,6 +25,16 @@ SLAVE2_USERNAME=myslave2
 SLAVE2_PASSWORD=mypass2
 SLAVE2_CHARACTERNAME=mychar2
 ```
+
+- `RUST_LOG` configures the logging verbosity. Leave this at `info` for normal use or `debug`/`trace` if you need to see packets
+- `PROXY_PORT_NUMBER` sets the port where the client will be able to connect on
+- `SERVER_ADDRESS` sets the chat server that it will connect to
+- `SPAM_BOT_SUPPORT` toggles support for distributing messages sent via `spam` over slaves
+- `SEND_TELLS_OVER_MAIN` will define whether distributing these messages will also use the main client
+- `RELAY_SLAVE_TELLS` toggles relaying tells to the slaves to the main
+- `RELAY_BY_ID` will change the method for choosing a slave for spam messages from round-robin to character IDs
+
+With `SPAM_BOT_SUPPORT` enabled, at least one slave is required unless `SEND_TELLS_OVER_MAIN` is also enabled.
 
 ## Running
 

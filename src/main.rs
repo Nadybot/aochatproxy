@@ -75,8 +75,7 @@ async fn main() -> Result<()> {
 
         // Forward all incoming packets to the client
         tasks.push(spawn(async move {
-            loop {
-                let packet = real_sock.read_raw_packet().await.unwrap();
+            while let Ok(packet) = real_sock.read_raw_packet().await {
                 debug!("Received {:?} packet for main", packet.0);
 
                 if log_enabled!(Trace) {
@@ -103,6 +102,8 @@ async fn main() -> Result<()> {
 
                 let _ = sock_sender.send(packet);
             }
+
+            Ok(())
         }));
 
         // Loop over incoming packets and depending on the type, round robin them
@@ -117,11 +118,7 @@ async fn main() -> Result<()> {
                 }
             };
             let mut current_buddy = start_at;
-            loop {
-                let packet = match sock.read_raw_packet().await {
-                    Ok(p) => p,
-                    Err(_) => break,
-                };
+            while let Ok(packet) = sock.read_raw_packet().await {
                 debug!("Received {:?} packet from main", packet.0);
 
                 if log_enabled!(Trace) {
@@ -178,7 +175,7 @@ async fn main() -> Result<()> {
                     PacketType::MsgPrivate => {
                         let mut m = MsgPrivatePacket::load(&packet.1).unwrap();
                         if m.message.send_tag.starts_with("spam") {
-                            let worker_id = m.message.send_tag.split("-").last();
+                            let worker_id = m.message.send_tag.split('-').last();
 
                             // If a worker ID is provided via spam-N, use that one next
                             if let Some(id) = worker_id {
