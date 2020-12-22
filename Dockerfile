@@ -31,7 +31,17 @@ RUN source $HOME/.cargo/env && \
 
 WORKDIR /build
 
-COPY . .
+COPY Cargo.toml Cargo.lock ./
+COPY .cargo ./.cargo/
+
+RUN mkdir src/
+RUN echo 'fn main() {}' > ./src/main.rs
+RUN source $HOME/.cargo/env && \
+    cargo build --release \
+        --target="$RUST_TARGET"
+
+RUN rm -f target/$RUST_TARGET/release/deps/aochatproxy*
+COPY ./src ./src
 
 RUN source $HOME/.cargo/env && \
     cargo build --release \
@@ -39,10 +49,8 @@ RUN source $HOME/.cargo/env && \
     cp target/$RUST_TARGET/release/aochatproxy /aochatproxy && \
     actual-strip /aochatproxy
 
-FROM docker.io/${FINAL_TARGET}/alpine:edge
+FROM scratch
 
-WORKDIR /aochatproxy
+COPY --from=builder /aochatproxy /aochatproxy
 
-COPY --from=builder /aochatproxy /usr/bin/aochatproxy
-
-CMD /usr/bin/aochatproxy
+ENTRYPOINT ["./aochatproxy"]

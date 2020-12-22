@@ -10,6 +10,7 @@ edition = "2018"
 dashmap = "4.0.0-rc.6"
 dotenv = "0.15"
 env_logger = "0.8"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
 log = "0.4"
 nadylib = { git = "https://github.com/Nadybot/nadylib", branch = "unstable", default-features = false }
 tokio = { version = "0.3", default-features = false, features = ["macros", "rt-multi-thread"] }

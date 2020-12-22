@@ -29,7 +29,10 @@ pub async fn worker_main(
     // Forward all incoming packets from the master bot to this slave connection
     spawn(async move {
         loop {
-            let packet = packet_reader.recv().await.unwrap();
+            let packet = match packet_reader.recv().await {
+                Some(v) => v,
+                None => break,
+            };
             debug!("Sending {:?} packet from worker #{}", packet.0, id);
 
             if log_enabled!(Trace) {
