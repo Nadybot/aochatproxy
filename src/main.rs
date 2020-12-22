@@ -175,11 +175,12 @@ async fn main() -> Result<()> {
                     PacketType::MsgPrivate => {
                         let mut m = MsgPrivatePacket::load(&packet.1).unwrap();
                         if m.message.send_tag.starts_with("spam") {
-                            let worker_id = m.message.send_tag.split('-').last();
+                            let split_parts: Vec<&str> =
+                                m.message.send_tag.splitn(2, "spam-").collect();
 
                             // If a worker ID is provided via spam-N, use that one next
-                            if let Some(id) = worker_id {
-                                let num: usize = id.parse().unwrap_or(current_buddy);
+                            if split_parts.len() == 2 {
+                                let num: usize = split_parts[1].parse().unwrap_or(current_buddy);
                                 if num <= account_num {
                                     current_buddy = num;
                                 }
