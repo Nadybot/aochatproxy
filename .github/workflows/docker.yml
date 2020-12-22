@@ -16,56 +16,71 @@ jobs:
           uses: actions/checkout@v2.2.0
           with:
             fetch-depth: 0
-        - name: Enable experimental Docker features
-          run: |
-            mkdir -p ~/.docker
-            echo "{\"experimental\": \"enabled\"}" > ~/.docker/config.json
         - name: Login to registries
           shell: bash
           run: |
-            echo "${{ secrets.QUAY_PASSWORD }}" | docker login -u "${{ secrets.QUAY_USERNAME }}" --password-stdin quay.io/nadyita
-            echo "${{ secrets.GH_TOKEN }}" | docker login -u gelbpunkt --password-stdin ghcr.io
+            echo "${{ secrets.QUAY_PASSWORD }}" | podman login -u "${{ secrets.QUAY_USERNAME }}" --password-stdin quay.io/nadyita
+            echo "${{ secrets.GH_TOKEN }}" | podman login -u gelbpunkt --password-stdin ghcr.io
         - name: Build the docker image for x86_64
           shell: bash
           run: |
-            docker build --file Dockerfile \
+            podman build --file Dockerfile \
+              --format docker \
               --tag "quay.io/nadyita/aochatproxy:rust-rewrite-amd64" \
               --tag "ghcr.io/nadybot/aochatproxy:rust-rewrite-amd64" .
         - name: Build the docker image for aarch64
           shell: bash
           run: |
-            docker build --file Dockerfile \
+            podman build --file Dockerfile \
               --build-arg RUST_TARGET=aarch64-unknown-linux-musl \
               --build-arg MUSL_TARGET=aarch64-linux-musl \
               --arch arm64 \
+              --format docker \
               --tag "quay.io/nadyita/aochatproxy:rust-rewrite-armv8" \
               --tag "ghcr.io/nadybot/aochatproxy:rust-rewrite-armv8" .
         - name: Build the docker image for armv7l
           shell: bash
           run: |
-            docker build --file Dockerfile \
+            podman build --file Dockerfile \
               --build-arg RUST_TARGET=armv7-unknown-linux-musleabihf \
               --build-arg MUSL_TARGET=armv7l-linux-musleabihf \
               --arch arm \
+              --format docker \
               --tag "quay.io/nadyita/aochatproxy:rust-rewrite-armv7l" \
               --tag "ghcr.io/nadybot/aochatproxy:rust-rewrite-armv7l" .
         - name: Push the tagged Docker image
           shell: bash
           run: |
-            docker push "quay.io/nadyita/aochatproxy:rust-rewrite-amd64"
-            docker push "quay.io/nadyita/aochatproxy:rust-rewrite-armv8"
-            docker push "quay.io/nadyita/aochatproxy:rust-rewrite-armv7l"
-            docker push "ghcr.io/nadybot/aochatproxy:rust-rewrite-amd64"
-            docker push "ghcr.io/nadybot/aochatproxy:rust-rewrite-armv8"
-            docker push "ghcr.io/nadybot/aochatproxy:rust-rewrite-armv7l"
-            docker manifest create "quay.io/nadyita/aochatproxy:rust-rewrite" \
+            podman push "quay.io/nadyita/aochatproxy:rust-rewrite-amd64"
+            podman push "quay.io/nadyita/aochatproxy:rust-rewrite-armv8"
+            podman push "quay.io/nadyita/aochatproxy:rust-rewrite-armv7l"
+            podman push "ghcr.io/nadybot/aochatproxy:rust-rewrite-amd64"
+            podman push "ghcr.io/nadybot/aochatproxy:rust-rewrite-armv8"
+            podman push "ghcr.io/nadybot/aochatproxy:rust-rewrite-armv7l"
+            podman rmi \
                 "quay.io/nadyita/aochatproxy:rust-rewrite-amd64" \
                 "quay.io/nadyita/aochatproxy:rust-rewrite-armv8" \
-                "quay.io/nadyita/aochatproxy:rust-rewrite-armv7l"
-            docker manifest push "quay.io/nadyita/aochatproxy:rust-rewrite"
-            docker manifest create "ghcr.io/nadyita/aochatproxy:rust-rewrite" \
+                "quay.io/nadyita/aochatproxy:rust-rewrite-armv7l" \
                 "ghcr.io/nadybot/aochatproxy:rust-rewrite-amd64" \
                 "ghcr.io/nadybot/aochatproxy:rust-rewrite-armv8" \
                 "ghcr.io/nadybot/aochatproxy:rust-rewrite-armv7l"
-            docker manifest push "ghcr.io/nadyita/aochatproxy:rust-rewrite"
+            podman manifest create "aochatproxy:rust-rewrite"
+            podman manifest add "aochatproxy:rust-rewrite" \
+                "docker://quay.io/nadyita/aochatproxy:rust-rewrite-amd64"
+            podman manifest add "aochatproxy:rust-rewrite" \
+                "docker://quay.io/nadyita/aochatproxy:rust-rewrite-armv8"
+            podman manifest add "aochatproxy:rust-rewrite" \
+                "docker://quay.io/nadyita/aochatproxy:rust-rewrite-armv7l"
+            podman manifest push "aochatproxy:rust-rewrite" "docker://quay.io/nadyita/aochatproxy:rust-rewrite" --format docker
+
+            podman rmi "aochatproxy:rust-rewrite"
+
+            podman manifest create "aochatproxy:rust-rewrite"
+            podman manifest add "aochatproxy:rust-rewrite" \
+                "docker://ghcr.io/nadybot/aochatproxy:rust-rewrite-amd64"
+            podman manifest add "aochatproxy:rust-rewrite" \
+                "docker://ghcr.io/nadybot/aochatproxy:rust-rewrite-armv8"
+            podman manifest add "aochatproxy:rust-rewrite" \
+                "docker://ghcr.io/nadybot/aochatproxy:rust-rewrite-armv7l"
+            podman manifest push "aochatproxy:rust-rewrite" "docker://ghcr.io/nadybot/aochatproxy:rust-rewrite" --format docker
 

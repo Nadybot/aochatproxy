@@ -25,6 +25,16 @@ SLAVE2_PASSWORD=mypass2
 SLAVE2_CHARACTERNAME=mychar2
 ```
 
+## Running
+
+We provide prebuilt docker images for x86_64, aarch64 (64-bit ARM) and armv7l (32-bit ARM like Raspberry Pi).
+
+Via Docker/Podman:
+
+```bash
+docker run --rm -it --env-file .env --init quay.io/nadyita/aochatproxy:rust-rewrite
+```
+
 ## Implementation for clients
 
 For each slave, the bot will send a LoginOk packet to the client to calculate the amount of buddies that it can have. Whenever a BuddyAdd packet is sent from the client, the proxy will instead send it from the slave or client connection, depending on which has the least buddies. BuddyRemove is handled on all of them.
