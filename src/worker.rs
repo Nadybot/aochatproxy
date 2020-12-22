@@ -80,14 +80,20 @@ pub async fn worker_main(
                         socket.login(&account.username, &account.password, &l.login_seed)?;
                     }
                     ReceivedPacket::LoginCharlist(c) => {
-                        let character_id = c
-                            .characters
-                            .iter()
-                            .find(|i| i.name == account.character)
-                            .unwrap()
-                            .id;
-                        let pack = LoginSelectPacket { character_id };
-                        socket.send(pack)?;
+                        if let Some(character) =
+                            c.characters.iter().find(|i| i.name == account.character)
+                        {
+                            let pack = LoginSelectPacket {
+                                character_id: character.id,
+                            };
+                            socket.send(pack)?;
+                        } else {
+                            error!(
+                                "Character {} is not on account {}",
+                                account.character, account.username
+                            );
+                            break;
+                        }
                     }
                     ReceivedPacket::LoginOk => {
                         info!("{} logged in", account.character);

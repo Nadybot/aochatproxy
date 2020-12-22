@@ -24,7 +24,7 @@ mod worker;
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv().ok();
-    env_logger::init();
+    env_logger::builder().format_timestamp_millis().init();
 
     let config = config::load_config().unwrap_or_else(|e| {
         error!("Configuration Error: {}", e);
