@@ -44,8 +44,15 @@ RUN source $HOME/.cargo/env && \
     cp target/$RUST_TARGET/release/aochatproxy /aochatproxy && \
     actual-strip /aochatproxy
 
+FROM docker.io/library/alpine:edge AS dumb-init
+
+RUN wget https://github.com/Yelp/dumb-init/releases/download/v1.2.4/dumb-init_1.2.4_x86_64 && \
+    chmod +x dumb-init_1.2.4_x86_64
+
 FROM scratch
 
+COPY --from=dumb-init /dumb-init_1.2.4_x86_64 /dumb-init
 COPY --from=builder /aochatproxy /aochatproxy
 
-ENTRYPOINT ["./aochatproxy"]
+ENTRYPOINT ["./dumb-init", "--"]
+CMD ["./aochatproxy"]

@@ -41,7 +41,7 @@ With `SPAM_BOT_SUPPORT` enabled, at least one slave is required unless `SEND_TEL
 Via Docker/Podman:
 
 ```bash
-docker run --rm -it --env-file .env --init quay.io/nadyita/aochatproxy:rust-rewrite
+docker run --rm -it --env-file .env quay.io/nadyita/aochatproxy:rust-rewrite
 ```
 
 ## Implementation for clients
