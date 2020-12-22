@@ -215,7 +215,7 @@ dependencies = [
 [[package]]
 name = "nadylib"
 version = "0.1.0"
-source = "git+https://github.com/Nadybot/nadylib?branch=unstable#0a3e84c695608d6cd903cb1134ff7449e7881cae"
+source = "git+https://github.com/Nadybot/nadylib?branch=unstable#23675aaddc89ff81b1ec6be97eaaf2c9cc936e9e"
 dependencies = [
  "byteorder",
  "lazy_static",
