@@ -121,7 +121,8 @@ pub async fn worker_main(
                     ReceivedPacket::MsgPrivate(mut m) => {
                         if config.relay_slave_tells {
                             debug!("Relaying tell message from worker #{} to main", id);
-                            m.message.send_tag = id.to_string();
+                            m.message.send_tag =
+                                format!("{{\"id\": {}, \"name\": {:?}}}", id, account.character);
                             sender.send(m.serialize())?;
                         }
                     }

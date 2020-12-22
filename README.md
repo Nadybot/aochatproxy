@@ -50,4 +50,4 @@ For each slave, the bot will send a LoginOk packet to the client to calculate th
 
 For outgoing tell messages, they will be proxied over the client by default unless `spam` is used as the routing key instead of `\0`. If spam is enabled for a message and in the config, it will distribute these across all slaves to avoid ratelimits.
 
-When relaying tells from slaves to the client in the config, the routing key will be `N` where N is the ID of the slave. This can be used to send `spam-N` as the outgoing key to send it over a specific slave.
+When relaying tells from slaves to the client in the config, the routing key will be e.g. `{"id": 1, "name": "mychar1"}`. This can be used to send `spam-1` as the outgoing key to send a reply over this specific slave.
