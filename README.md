@@ -27,8 +27,6 @@ SLAVE2_CHARACTERNAME=mychar2
 
 ## Running
 
-We provide prebuilt docker images for x86_64, aarch64 (64-bit ARM) and armv7l (32-bit ARM like Raspberry Pi).
-
 Via Docker/Podman:
 
 ```bash
