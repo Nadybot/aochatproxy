@@ -3,6 +3,7 @@ use dotenv::dotenv;
 use futures_util::stream::{FuturesUnordered, StreamExt};
 use log::{debug, error, info, log_enabled, trace, warn, Level::Trace};
 use nadylib::{
+    models::Channel,
     packets::{
         BuddyRemovePacket, BuddyStatusPacket, IncomingPacket, MsgPrivatePacket, OutgoingPacket,
         PacketType, ReceivedPacket,
@@ -33,6 +34,7 @@ async fn main() -> Result<()> {
     loop {
         let spam_bot_support = config.spam_bot_support;
         let send_tells_over_main = config.send_tells_over_main;
+        let relay_by_id = config.relay_by_id;
         let account_num = config.accounts.len();
         let tcp_server = TcpListener::bind(format!("0.0.0.0:{}", config.port_number)).await?;
 
@@ -183,6 +185,15 @@ async fn main() -> Result<()> {
                                 let num: usize = id.parse().unwrap_or(current_buddy);
                                 if num <= account_num {
                                     current_buddy = num;
+                                }
+                            } else if relay_by_id {
+                                // If we are using modulo strategy, calculate it
+                                if let Channel::Tell(id) = m.message.channel {
+                                    if send_tells_over_main {
+                                        current_buddy = (id as usize) % (account_num + 1);
+                                    } else {
+                                        current_buddy = (id as usize) % account_num + 1;
+                                    }
                                 }
                             }
 

@@ -8,10 +8,37 @@ use nadylib::{
 };
 use tokio::{
     spawn,
-    sync::mpsc::{UnboundedReceiver, UnboundedSender},
+    sync::{
+        mpsc::{UnboundedReceiver, UnboundedSender},
+        Notify,
+    },
 };
 
 use std::{convert::TryFrom, sync::Arc};
+
+async fn worker_reader(
+    id: usize,
+    mut packet_reader: UnboundedReceiver<SerializedPacket>,
+    socket_sender: UnboundedSender<SerializedPacket>,
+    notify_wait: Arc<Notify>,
+) {
+    notify_wait.notified().await;
+    loop {
+        let packet = match packet_reader.recv().await {
+            Some(v) => v,
+            None => break,
+        };
+        debug!("Sending {:?} packet from worker #{}", packet.0, id);
+
+        if log_enabled!(Trace) {
+            let loaded = ReceivedPacket::try_from((packet.0, packet.1.as_slice()));
+            if let Ok(pack) = loaded {
+                trace!("Packet body: {:?}", pack);
+            }
+        }
+        let _ = socket_sender.send(packet);
+    }
+}
 
 // The main helper bot task
 pub async fn worker_main(
@@ -20,30 +47,14 @@ pub async fn worker_main(
     account: AccountData,
     sender: UnboundedSender<SerializedPacket>,
     buddies: Arc<DashMap<usize, DashMap<u32, ()>>>,
-    mut packet_reader: UnboundedReceiver<SerializedPacket>,
+    packet_reader: UnboundedReceiver<SerializedPacket>,
 ) -> Result<()> {
     let mut socket = AOSocket::connect(config.server_address).await?;
     let socket_sender = socket.get_sender();
     buddies.insert(id, DashMap::new());
-
-    // Forward all incoming packets from the master bot to this slave connection
-    spawn(async move {
-        loop {
-            let packet = match packet_reader.recv().await {
-                Some(v) => v,
-                None => break,
-            };
-            debug!("Sending {:?} packet from worker #{}", packet.0, id);
-
-            if log_enabled!(Trace) {
-                let loaded = ReceivedPacket::try_from((packet.0, packet.1.as_slice()));
-                if let Ok(pack) = loaded {
-                    trace!("Packet body: {:?}", pack);
-                }
-            }
-            let _ = socket_sender.send(packet);
-        }
-    });
+    let notify = Arc::new(Notify::new());
+    let notify2 = notify.clone();
+    spawn(worker_reader(id, packet_reader, socket_sender, notify2));
 
     loop {
         // Read a packet and handle it if interested
@@ -85,6 +96,7 @@ pub async fn worker_main(
                     ReceivedPacket::LoginOk => {
                         info!("{} logged in", account.character);
                         debug!("Sending LoginOk packet from worker #{} to main", id);
+                        notify.notify_one();
                         sender.send((packet_type, body))?;
                     }
                     ReceivedPacket::LoginError(e) => {

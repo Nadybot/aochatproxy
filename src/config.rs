@@ -18,6 +18,7 @@ pub struct Config {
     pub spam_bot_support: bool,
     pub send_tells_over_main: bool,
     pub relay_slave_tells: bool,
+    pub relay_by_id: bool,
 }
 
 pub enum ConfigError {
@@ -87,6 +88,10 @@ pub fn load_config() -> Result<Config, ConfigError> {
         .unwrap_or_else(|_| String::from("false"))
         .parse()
         .map_err(|_| ConfigError::NotBoolean(String::from("RELAY_SLAVE_TELLS")))?;
+    let relay_by_id: bool = var("RELAY_BY_ID")
+        .unwrap_or_else(|_| String::from("false"))
+        .parse()
+        .map_err(|_| ConfigError::NotBoolean(String::from("RELAY_BY_ID")))?;
 
     // We cannot send tells in this case
     if !send_tells_over_main && account_data.is_empty() {
@@ -102,5 +107,6 @@ pub fn load_config() -> Result<Config, ConfigError> {
         spam_bot_support,
         send_tells_over_main,
         relay_slave_tells,
+        relay_by_id,
     })
 }
