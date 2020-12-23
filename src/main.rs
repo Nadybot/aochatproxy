@@ -94,7 +94,10 @@ async fn main() -> Result<()> {
                 let now = Instant::now();
                 for i in 0..account_num + 1 {
                     pending_buddies_clone.update_get(&i, |_, v| {
-                        v.into_iter().filter(|i| **i + dur > now).cloned().collect()
+                        let w: VecDeque<Instant> =
+                            v.into_iter().filter(|i| **i + dur > now).cloned().collect();
+                        debug!("Removed {} timed out buddy adds", v.len() - w.len());
+                        w
                     });
                 }
             }
