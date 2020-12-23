@@ -12,9 +12,10 @@ use tokio::{
         mpsc::{UnboundedReceiver, UnboundedSender},
         Notify,
     },
+    time::Instant,
 };
 
-use std::{convert::TryFrom, sync::Arc};
+use std::{collections::VecDeque, convert::TryFrom, sync::Arc};
 
 async fn worker_reader(
     id: usize,
@@ -44,6 +45,7 @@ pub async fn worker_main(
     account: AccountData,
     sender: UnboundedSender<SerializedPacket>,
     buddies: Arc<DashMap<usize, DashMap<u32, ()>>>,
+    pending_buddies: Arc<DashMap<usize, VecDeque<Instant>>>,
     packet_reader: UnboundedReceiver<SerializedPacket>,
 ) -> Result<()> {
     let mut socket = AOSocket::connect(config.server_address).await?;
@@ -116,6 +118,11 @@ pub async fn worker_main(
                         );
                         debug!("Sending BuddyAdd packet from worker #{} to main", id);
                         buddies.get(&id).unwrap().insert(b.character_id, ());
+                        pending_buddies.update_get(&id, |_, v| {
+                            let mut w = v.clone();
+                            w.pop_front();
+                            w
+                        });
                         sender.send((packet_type, body))?;
                     }
                     ReceivedPacket::BuddyRemove(b) => {

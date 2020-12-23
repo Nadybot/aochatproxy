@@ -14,9 +14,15 @@ use tokio::{
     net::TcpListener,
     spawn,
     sync::{mpsc::unbounded_channel, Notify},
+    time::{sleep, Duration, Instant},
 };
 
-use std::{collections::HashMap, convert::TryFrom, process::exit, sync::Arc};
+use std::{
+    collections::{HashMap, VecDeque},
+    convert::TryFrom,
+    process::exit,
+    sync::Arc,
+};
 
 mod config;
 mod worker;
@@ -54,13 +60,20 @@ async fn main() -> Result<()> {
         buddies.insert(0, DashMap::new());
         let task1_buddies = buddies.clone();
         let task2_buddies = buddies.clone();
+        // Pending buddies per account
+        let pending_buddies: Arc<DashMap<usize, VecDeque<Instant>>> =
+            Arc::new(DashMap::with_capacity(account_num + 1));
+        let pending_buddies_clone = pending_buddies.clone();
+        let pending_buddies_clone_2 = pending_buddies.clone();
         // List of communication channels to the workers
         let mut senders = HashMap::with_capacity(account_num + 1);
         let mut receivers = HashMap::with_capacity(account_num);
         senders.insert(0, real_sock.get_sender());
+        pending_buddies.insert(0, VecDeque::new());
         for i in 0..account_num {
             let (s, r) = unbounded_channel();
             senders.insert(i + 1, s);
+            pending_buddies.insert(i + 1, VecDeque::new());
             receivers.insert(i, r);
         }
 
@@ -72,6 +85,20 @@ async fn main() -> Result<()> {
         let logged_in_setter = logged_in.clone();
 
         let mut tasks = FuturesUnordered::new();
+
+        // Remove pending buddy adds after 10s
+        tasks.push(spawn(async move {
+            let dur = Duration::from_secs(10);
+            loop {
+                sleep(dur).await;
+                let now = Instant::now();
+                for i in 0..account_num + 1 {
+                    pending_buddies_clone.update_get(&i, |_, v| {
+                        v.into_iter().filter(|i| **i + dur > now).cloned().collect()
+                    });
+                }
+            }
+        }));
 
         // Forward all incoming packets to the client
         tasks.push(spawn(async move {
@@ -132,17 +159,24 @@ async fn main() -> Result<()> {
                     PacketType::BuddyAdd => {
                         // Add the buddy on the slave with least buddies
                         let mut least_buddies = 0;
-                        let mut buddy_count = task2_buddies.get(&0).unwrap().value().len();
+                        let mut buddy_count = task2_buddies.get(&0).unwrap().value().len()
+                            + pending_buddies_clone_2.get(&0).unwrap().value().len();
 
                         for key in 1..task2_buddies.len() {
                             let elem = task2_buddies.get(&key).unwrap();
-                            let val = elem.value().len();
+                            let val = elem.value().len()
+                                + pending_buddies_clone_2.get(&key).unwrap().value().len();
                             if val < buddy_count {
                                 buddy_count = val;
                                 least_buddies = *elem.key();
                             }
                         }
 
+                        pending_buddies_clone_2.update(&least_buddies, |_, v| {
+                            let mut w = v.clone();
+                            w.push_back(Instant::now());
+                            w
+                        });
                         if least_buddies == 0 {
                             debug!("Adding buddy on main ({} current buddies)", buddy_count);
                         } else {
@@ -233,6 +267,7 @@ async fn main() -> Result<()> {
                 acc.clone(),
                 duplicate_sock_sender.clone(),
                 buddies.clone(),
+                pending_buddies.clone(),
                 receivers.remove(&idx).unwrap(),
             )));
         }
