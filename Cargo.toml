@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 dashmap = "4.0.0-rc.6"
 dotenv = "0.15"
-env_logger = "0.8"
+env_logger = { version = "0.8", default-features = false, features = ["termcolor", "atty", "humantime"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 log = "0.4"
 nadylib = { git = "https://github.com/Nadybot/nadylib", branch = "unstable", default-features = false }
