@@ -5,8 +5,8 @@ use log::{debug, error, info, log_enabled, trace, warn, Level::Trace};
 use nadylib::{
     models::Channel,
     packets::{
-        BuddyRemovePacket, BuddyStatusPacket, IncomingPacket, MsgPrivatePacket, OutgoingPacket,
-        PacketType, ReceivedPacket,
+        BuddyAddPacket, BuddyRemovePacket, BuddyStatusPacket, IncomingPacket, MsgPrivatePacket,
+        OutgoingPacket, PacketType, ReceivedPacket,
     },
     AOSocket, Result,
 };
@@ -14,15 +14,11 @@ use tokio::{
     net::TcpListener,
     spawn,
     sync::{mpsc::unbounded_channel, Notify},
-    time::{sleep, Duration, Instant},
+    time::Instant,
 };
+use worker::WorkerHandle;
 
-use std::{
-    collections::{HashMap, VecDeque},
-    convert::TryFrom,
-    process::exit,
-    sync::Arc,
-};
+use std::{convert::TryFrom, process::exit, sync::Arc};
 
 mod config;
 mod worker;
@@ -42,66 +38,54 @@ async fn main() -> Result<()> {
         let send_tells_over_main = config.send_tells_over_main;
         let relay_by_id = config.relay_by_id;
         let account_num = config.accounts.len();
-        let tcp_server = TcpListener::bind(format!("0.0.0.0:{}", config.port_number)).await?;
 
+        let logged_in = Arc::new(Notify::new());
+        let logged_in_waiter = logged_in.clone();
+        let logged_in_setter = logged_in.clone();
+
+        let (worker_sender, mut worker_receiver) = unbounded_channel();
+
+        // List of workers
+        let mut workers: Vec<worker::WorkerHandle> = Vec::with_capacity(account_num + 1);
+
+        // Create all workers
+        for (idx, acc) in config.accounts.iter().enumerate() {
+            info!("Spawning worker for {}", acc.character);
+
+            let worker = WorkerHandle::new(idx + 1, config.clone(), worker_sender.clone()).await;
+            workers.push(worker);
+        }
+
+        let tcp_server = TcpListener::bind(format!("0.0.0.0:{}", config.port_number)).await?;
         info!("Listening on port {}", config.port_number);
         info!("Waiting for client to connect...");
         let (client, addr) = tcp_server.accept().await?;
         info!("Client connected from {}", addr);
 
-        // Create the main connection to the chat servers
-        let mut sock = AOSocket::from_stream(client);
-        let mut real_sock = AOSocket::connect(config.server_address.clone()).await?;
-
-        // List of all buddies
-        let buddies: Arc<DashMap<usize, DashMap<u32, ()>>> =
-            Arc::new(DashMap::with_capacity(account_num + 1));
-        // The main bot buddies
-        buddies.insert(0, DashMap::new());
-        let task1_buddies = buddies.clone();
-        let task2_buddies = buddies.clone();
-        // Pending buddies per account
-        let pending_buddies: Arc<DashMap<usize, VecDeque<Instant>>> =
-            Arc::new(DashMap::with_capacity(account_num + 1));
-        let pending_buddies_clone = pending_buddies.clone();
-        let pending_buddies_clone_2 = pending_buddies.clone();
-        // List of communication channels to the workers
-        let mut senders = HashMap::with_capacity(account_num + 1);
-        let mut receivers = HashMap::with_capacity(account_num);
-        senders.insert(0, real_sock.get_sender());
-        pending_buddies.insert(0, VecDeque::new());
-        for i in 0..account_num {
-            let (s, r) = unbounded_channel();
-            senders.insert(i + 1, s);
-            pending_buddies.insert(i + 1, VecDeque::new());
-            receivers.insert(i, r);
-        }
-
-        let sock_sender = sock.get_sender();
-        let duplicate_sock_sender = sock_sender.clone();
-        let real_sock_sender = real_sock.get_sender();
-
-        let logged_in = Arc::new(Notify::new());
-        let logged_in_setter = logged_in.clone();
-
         let mut tasks = FuturesUnordered::new();
 
-        // Remove pending buddy adds after 10s
+        // Create a socket from the client
+        let mut sock = AOSocket::from_stream(client);
+        let sock_to_workers = sock.get_sender();
+        let sock_sender = sock.get_sender();
+        let mut real_sock = AOSocket::connect(config.server_address.clone()).await?;
+        let real_sock_sender = real_sock.get_sender();
+
+        // Forward stuff from the workers to the main
         tasks.push(spawn(async move {
-            let dur = Duration::from_secs(10);
-            loop {
-                sleep(dur).await;
-                let now = Instant::now();
-                for i in 0..account_num + 1 {
-                    pending_buddies_clone.update_get(&i, |_, v| {
-                        let w: VecDeque<Instant> =
-                            v.into_iter().filter(|i| **i + dur > now).cloned().collect();
-                        debug!("Removed {} timed out buddy adds", v.len() - w.len());
-                        w
-                    });
-                }
+            logged_in_waiter.notified().await;
+            while let Some(msg) = worker_receiver.recv().await {
+                let _ = sock_to_workers.send(msg);
             }
         }));
+
+        let main_buddies = Arc::new(DashMap::new());
+        let main_buddies_clone = main_buddies.clone();
+        let main_pending_buddies = Arc::new(DashMap::new());
+        let main_pending_buddies_clone = main_pending_buddies.clone();
+        let main_pending_buddies_clone_2 = main_pending_buddies.clone();
+
+        tasks.push(spawn(worker::remove_pending_buddies(main_pending_buddies)));
 
         // Forward all incoming packets to the client
         tasks.push(spawn(async move {
@@ -116,24 +100,23 @@ async fn main() -> Result<()> {
                 }
 
                 match packet.0 {
-                    PacketType::LoginOk => logged_in_setter.notify_one(),
+                    PacketType::LoginOk => logged_in_setter.notify_waiters(),
                     PacketType::BuddyAdd => {
                         let b = BuddyStatusPacket::load(&packet.1).unwrap();
                         debug!("Buddy {} is online: {}", b.character_id, b.online);
-                        task1_buddies.get(&0).unwrap().insert(b.character_id, ());
+                        main_pending_buddies_clone.remove(&b.character_id);
+                        main_buddies_clone.insert(b.character_id, ());
                     }
                     PacketType::BuddyRemove => {
                         let b = BuddyRemovePacket::load(&packet.1).unwrap();
                         debug!("Buddy {} removed", b.character_id);
-                        task1_buddies.get(&0).unwrap().remove(&b.character_id);
+                        main_buddies_clone.remove(&b.character_id);
                     }
                     _ => {}
                 }
 
                 let _ = sock_sender.send(packet);
             }
-
-            Ok(())
         }));
 
         // Loop over incoming packets and depending on the type, round robin them
@@ -162,50 +145,44 @@ async fn main() -> Result<()> {
                     PacketType::BuddyAdd => {
                         // Add the buddy on the slave with least buddies
                         let mut least_buddies = 0;
-                        let mut buddy_count = task2_buddies.get(&0).unwrap().value().len()
-                            + pending_buddies_clone_2.get(&0).unwrap().value().len();
+                        let mut buddy_count =
+                            main_buddies.len() + main_pending_buddies_clone_2.len();
 
-                        for key in 1..task2_buddies.len() {
-                            let elem = task2_buddies.get(&key).unwrap();
-                            let val = elem.value().len()
-                                + pending_buddies_clone_2.get(&key).unwrap().value().len();
-                            if val < buddy_count {
-                                buddy_count = val;
-                                least_buddies = *elem.key();
+                        for (id, worker) in workers.clone().iter().enumerate() {
+                            let worker_buddy_count = worker.get_total_buddies().await;
+                            if worker_buddy_count < buddy_count {
+                                least_buddies = id + 1;
+                                buddy_count = worker_buddy_count;
                             }
                         }
 
-                        pending_buddies_clone_2.update(&least_buddies, |_, v| {
-                            let mut w = v.clone();
-                            w.push_back(Instant::now());
-                            w
-                        });
                         if least_buddies == 0 {
                             debug!("Adding buddy on main ({} current buddies)", buddy_count);
+                            if let Ok(pack) = BuddyAddPacket::load(&packet.1) {
+                                main_pending_buddies_clone_2
+                                    .insert(pack.character_id, Instant::now());
+                            };
+                            let _ = real_sock_sender.send(packet);
                         } else {
                             debug!(
                                 "Adding buddy on worker #{} ({} current buddies)",
                                 least_buddies, buddy_count
                             );
+                            workers[least_buddies - 1].send_packet(packet).await;
                         }
-                        let _ = senders.get(&least_buddies).unwrap().send(packet);
                     }
                     PacketType::BuddyRemove => {
                         let b = BuddyRemovePacket::load(&packet.1).unwrap();
+
+                        if main_buddies.get(&b.character_id).is_some() {
+                            debug!("Removing buddy {} on main", b.character_id);
+                            let _ = real_sock_sender.send(packet.clone());
+                        }
                         // Remove the buddy on the slaves that have it on the buddy list
-                        for elem in task2_buddies.iter() {
-                            if elem.value().get(&b.character_id).is_some() {
-                                let worker_id = elem.key();
-                                if worker_id == &0 {
-                                    debug!("Removing buddy {} on main", b.character_id);
-                                } else {
-                                    debug!(
-                                        "Removing buddy {} on worker #{}",
-                                        b.character_id,
-                                        worker_id + 1
-                                    );
-                                }
-                                let _ = senders.get(worker_id).unwrap().send(packet.clone());
+                        for (id, worker) in workers.iter().enumerate() {
+                            if worker.has_buddy(b.character_id).await {
+                                debug!("Removing buddy {} on worker #{}", b.character_id, id + 1);
+                                worker.send_packet(packet.clone()).await;
                             }
                         }
                     }
@@ -236,7 +213,7 @@ async fn main() -> Result<()> {
                             let serialized = m.serialize();
 
                             if spam_bot_support && current_buddy != 0 {
-                                let _ = senders.get(&current_buddy).unwrap().send(serialized);
+                                workers[current_buddy].send_packet(serialized).await;
                             } else {
                                 let _ = real_sock_sender.send(serialized);
                             }
@@ -254,26 +231,7 @@ async fn main() -> Result<()> {
                     }
                 }
             }
-
-            Ok(())
         }));
-
-        // Wait until logged in
-        logged_in.notified().await;
-
-        // Create all slaves
-        for (idx, acc) in config.accounts.iter().enumerate() {
-            info!("Spawning worker for {}", acc.character);
-            tasks.push(spawn(worker::worker_main(
-                idx + 1,
-                config.clone(),
-                acc.clone(),
-                duplicate_sock_sender.clone(),
-                buddies.clone(),
-                pending_buddies.clone(),
-                receivers.remove(&idx).unwrap(),
-            )));
-        }
 
         let _ = tasks.next().await;
 

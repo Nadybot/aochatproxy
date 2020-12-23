@@ -209,7 +209,7 @@ dependencies = [
 [[package]]
 name = "nadylib"
 version = "0.1.0"
-source = "git+https://github.com/Nadybot/nadylib?branch=unstable#38ec13302af5b311eff1b3e6f5dbfea81226d741"
+source = "git+https://github.com/Nadybot/nadylib?branch=unstable#83f7c865009c6f45dd780c64ef129cdf5de95f34"
 dependencies = [
  "byteorder",
  "lazy_static",
