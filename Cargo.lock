@@ -10,7 +10,6 @@ dependencies = [
  "log",
  "nadylib",
  "tokio",
- "unicycle",
 ]
 
 [[package]]
@@ -412,21 +411,6 @@ name = "unicode-xid"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7fe0bb3479651439c9112f72b6c505038574c9fbb575ed1bf3b797fa39dd564"
-
-[[package]]
-name = "unicycle"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2321e8009bf5bd42adc9151769a8c1513e4c058784d5e4a7c114bf1e198ab29"
-dependencies = [
- "uniset",
-]
-
-[[package]]
-name = "uniset"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c8df27d72224eede62b575bac736c0f265164627634c67949ebb1c9a9a23b9c"
 
 [[package]]
 name = "wasi"

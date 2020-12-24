@@ -13,7 +13,6 @@ env_logger = { version = "0.8", default-features = false, features = ["termcolor
 log = "0.4"
 nadylib = { git = "https://github.com/Nadybot/nadylib", branch = "unstable", default-features = false }
 tokio = { version = "1.0", default-features = false, features = ["macros", "rt-multi-thread"] }
-unicycle = { version = "0.7", default-features = false }
 
 [profile.release]
 lto = "thin"

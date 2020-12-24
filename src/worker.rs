@@ -46,25 +46,34 @@ impl Worker {
         config: Config,
         receiver: mpsc::Receiver<WorkerMessage>,
         packet_sender: mpsc::UnboundedSender<SerializedPacket>,
+        logged_in: Arc<Notify>,
     ) -> Self {
         let socket = AOSocket::connect(config.server_address.clone())
             .await
             .unwrap();
         let sender = socket.get_sender();
-        let logged_in = Arc::new(Notify::new());
 
         let buddies = Arc::new(DashMap::new());
         let pending_buddies = Arc::new(DashMap::new());
 
-        spawn(worker_receive_loop(
-            id,
-            config,
-            socket,
-            logged_in,
-            packet_sender.clone(),
-            buddies.clone(),
-            pending_buddies.clone(),
-        ));
+        if id == 0 {
+            spawn(main_receive_loop(
+                socket,
+                logged_in,
+                packet_sender.clone(),
+                buddies.clone(),
+                pending_buddies.clone(),
+            ));
+        } else {
+            spawn(worker_receive_loop(
+                id,
+                config,
+                socket,
+                packet_sender.clone(),
+                buddies.clone(),
+                pending_buddies.clone(),
+            ));
+        }
 
         spawn(remove_pending_buddies(pending_buddies.clone()));
 
@@ -109,11 +118,49 @@ pub async fn remove_pending_buddies(pending_buddies: Arc<DashMap<u32, Instant>>)
     }
 }
 
+async fn main_receive_loop(
+    mut socket: AOSocket,
+    logged_in: Arc<Notify>,
+    packet_sender: UnboundedSender<SerializedPacket>,
+    buddies: Arc<DashMap<u32, ()>>,
+    pending_buddies: Arc<DashMap<u32, Instant>>,
+) -> Result<()> {
+    while let Ok(packet) = socket.read_raw_packet().await {
+        debug!("Received {:?} packet for main", packet.0);
+
+        if log_enabled!(Trace) {
+            let loaded = ReceivedPacket::try_from((packet.0, packet.1.as_slice()));
+            if let Ok(pack) = loaded {
+                trace!("Packet body: {:?}", pack);
+            }
+        }
+
+        match packet.0 {
+            PacketType::LoginOk => logged_in.notify_waiters(),
+            PacketType::BuddyAdd => {
+                let b = BuddyStatusPacket::load(&packet.1).unwrap();
+                debug!("Buddy {} is online: {}", b.character_id, b.online);
+                pending_buddies.remove(&b.character_id);
+                buddies.insert(b.character_id, ());
+            }
+            PacketType::BuddyRemove => {
+                let b = BuddyRemovePacket::load(&packet.1).unwrap();
+                debug!("Buddy {} removed", b.character_id);
+                buddies.remove(&b.character_id);
+            }
+            _ => {}
+        }
+
+        let _ = packet_sender.send(packet);
+    }
+
+    Ok(())
+}
+
 async fn worker_receive_loop(
     id: usize,
     config: Config,
     mut socket: AOSocket,
-    logged_in: Arc<Notify>,
     packet_sender: UnboundedSender<SerializedPacket>,
     buddies: Arc<DashMap<u32, ()>>,
     pending_buddies: Arc<DashMap<u32, Instant>>,
@@ -134,7 +181,6 @@ async fn worker_receive_loop(
             PacketType::LoginOk => {
                 info!("{} logged in", account.character);
                 debug!("Sending LoginOk packet from worker #{} to main", id);
-                logged_in.notify_one();
                 packet_sender.send((packet_type, body))?;
             }
             PacketType::LoginError => {
@@ -206,6 +252,7 @@ async fn run_worker(mut worker: Worker) {
 
 #[derive(Clone)]
 pub struct WorkerHandle {
+    pub id: usize,
     sender: mpsc::Sender<WorkerMessage>,
 }
 
@@ -214,12 +261,13 @@ impl WorkerHandle {
         id: usize,
         config: Config,
         packet_sender: UnboundedSender<SerializedPacket>,
+        logged_in: Arc<Notify>,
     ) -> Self {
         let (sender, receiver) = mpsc::channel(1000);
-        let worker = Worker::new(id, config, receiver, packet_sender).await;
+        let worker = Worker::new(id, config, receiver, packet_sender, logged_in).await;
         spawn(run_worker(worker));
 
-        Self { sender }
+        Self { id, sender }
     }
 
     pub async fn get_total_buddies(&self) -> usize {
