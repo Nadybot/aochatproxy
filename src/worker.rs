@@ -56,7 +56,7 @@ impl Worker {
         let buddies = Arc::new(DashMap::new());
         let pending_buddies = Arc::new(DashMap::new());
 
-        spawn(main_receive_loop(
+        spawn(worker_receive_loop(
             id,
             config,
             socket,
@@ -109,7 +109,7 @@ pub async fn remove_pending_buddies(pending_buddies: Arc<DashMap<u32, Instant>>)
     }
 }
 
-async fn main_receive_loop(
+async fn worker_receive_loop(
     id: usize,
     config: Config,
     mut socket: AOSocket,

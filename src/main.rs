@@ -1,6 +1,5 @@
 use dashmap::DashMap;
 use dotenv::dotenv;
-use futures_util::stream::{FuturesUnordered, StreamExt};
 use log::{debug, error, info, log_enabled, trace, warn, Level::Trace};
 use nadylib::{
     models::Channel,
@@ -16,6 +15,7 @@ use tokio::{
     sync::{mpsc::unbounded_channel, Notify},
     time::Instant,
 };
+use unicycle::FuturesUnordered;
 use worker::WorkerHandle;
 
 use std::{convert::TryFrom, process::exit, sync::Arc};
@@ -46,7 +46,7 @@ async fn main() -> Result<()> {
         let (worker_sender, mut worker_receiver) = unbounded_channel();
 
         // List of workers
-        let mut workers: Vec<worker::WorkerHandle> = Vec::with_capacity(account_num + 1);
+        let mut workers: Vec<worker::WorkerHandle> = Vec::with_capacity(account_num);
 
         // Create all workers
         for (idx, acc) in config.accounts.iter().enumerate() {
@@ -62,7 +62,7 @@ async fn main() -> Result<()> {
         let (client, addr) = tcp_server.accept().await?;
         info!("Client connected from {}", addr);
 
-        let mut tasks = FuturesUnordered::new();
+        let mut tasks = Vec::with_capacity(4);
 
         // Create a socket from the client
         let mut sock = AOSocket::from_stream(client);
@@ -233,12 +233,17 @@ async fn main() -> Result<()> {
             }
         }));
 
-        let _ = tasks.next().await;
+        let num_tasks = tasks.len();
+        let mut task_collection = tasks.into_iter().collect::<FuturesUnordered<_>>();
+
+        let _ = task_collection.next().await;
+
+        for i in 0..num_tasks {
+            if let Some(fut) = task_collection.get_mut(i) {
+                fut.abort();
+            }
+        }
 
         warn!("Lost a connection (probably from client), restarting...");
-
-        for task in tasks.iter() {
-            task.abort();
-        }
     }
 }
