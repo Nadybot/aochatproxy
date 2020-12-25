@@ -17,7 +17,7 @@ pub struct Config {
     pub server_address: String,
     pub spam_bot_support: bool,
     pub send_tells_over_main: bool,
-    pub relay_slave_tells: bool,
+    pub relay_worker_tells: bool,
     pub relay_by_id: bool,
 }
 
@@ -45,15 +45,27 @@ impl Display for ConfigError {
 
 pub fn load_config() -> Result<Config, ConfigError> {
     let mut next_number = 1;
-    let mut account_data = Vec::new();
+    let mut account_data: Vec<AccountData> = Vec::new();
 
     loop {
-        let username = var(format!("SLAVE{}_USERNAME", next_number));
-        let password = var(format!("SLAVE{}_PASSWORD", next_number));
-        let character = var(format!("SLAVE{}_CHARACTERNAME", next_number));
+        let mut username = var(format!("WORKER{}_USERNAME", next_number));
+        let mut password = var(format!("WORKER{}_PASSWORD", next_number));
+        let character = var(format!("WORKER{}_CHARACTERNAME", next_number));
 
-        if username.is_err() || password.is_err() || character.is_err() {
+        if character.is_err() {
             break;
+        }
+        if username.is_err() {
+            if account_data.is_empty() {
+                break;
+            }
+            username = Ok(account_data.last().unwrap().username.clone());
+        }
+        if password.is_err() {
+            if account_data.is_empty() {
+                break;
+            }
+            password = Ok(account_data.last().unwrap().password.clone())
         }
         let account = AccountData {
             username: username.unwrap(),
@@ -84,10 +96,10 @@ pub fn load_config() -> Result<Config, ConfigError> {
         })
         .parse()
         .map_err(|_| ConfigError::NotBoolean(String::from("SEND_TELLS_OVER_MAIN")))?;
-    let relay_slave_tells: bool = var("RELAY_SLAVE_TELLS")
+    let relay_worker_tells: bool = var("RELAY_WORKER_TELLS")
         .unwrap_or_else(|_| String::from("false"))
         .parse()
-        .map_err(|_| ConfigError::NotBoolean(String::from("RELAY_SLAVE_TELLS")))?;
+        .map_err(|_| ConfigError::NotBoolean(String::from("RELAY_WORKER_TELLS")))?;
     let relay_by_id: bool = var("RELAY_BY_ID")
         .unwrap_or_else(|_| String::from("false"))
         .parse()
@@ -96,7 +108,7 @@ pub fn load_config() -> Result<Config, ConfigError> {
     // We cannot send tells in this case
     if spam_bot_support & (!send_tells_over_main && account_data.is_empty()) {
         return Err(ConfigError::InvalidConfig(String::from(
-            "When SPAM_BOT_SUPPORT is true and SEND_TELLS_OVER_MAIN is disabled, at least one slave needs to be configured",
+            "When SPAM_BOT_SUPPORT is true and SEND_TELLS_OVER_MAIN is disabled, at least one worker needs to be configured",
         )));
     }
 
@@ -106,7 +118,7 @@ pub fn load_config() -> Result<Config, ConfigError> {
         server_address,
         spam_bot_support,
         send_tells_over_main,
-        relay_slave_tells,
+        relay_worker_tells,
         relay_by_id,
     })
 }

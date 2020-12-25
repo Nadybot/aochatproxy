@@ -1,7 +1,7 @@
 use crate::config::Config;
 
 use dashmap::DashMap;
-use log::{debug, error, info, log_enabled, trace, Level::Trace};
+use log::{debug, error, info, trace};
 use mpsc::UnboundedSender;
 use nadylib::{
     packets::{
@@ -9,7 +9,7 @@ use nadylib::{
         LoginSeedPacket, LoginSelectPacket, MsgPrivatePacket, OutgoingPacket, PacketType,
         SerializedPacket,
     },
-    AOSocket, ReceivedPacket, Result,
+    AOSocket, Result,
 };
 use tokio::{
     spawn,
@@ -17,7 +17,7 @@ use tokio::{
     time::{sleep, Duration, Instant},
 };
 
-use std::{convert::TryFrom, sync::Arc};
+use std::sync::Arc;
 
 // An actor-like struct
 struct Worker {
@@ -127,13 +127,7 @@ async fn main_receive_loop(
 ) -> Result<()> {
     while let Ok(packet) = socket.read_raw_packet().await {
         debug!("Received {:?} packet for main", packet.0);
-
-        if log_enabled!(Trace) {
-            let loaded = ReceivedPacket::try_from((packet.0, packet.1.as_slice()));
-            if let Ok(pack) = loaded {
-                trace!("Packet body: {:?}", pack);
-            }
-        }
+        trace!("Packet body: {:?}", packet.1);
 
         match packet.0 {
             PacketType::LoginOk => logged_in.notify_waiters(),
@@ -169,13 +163,7 @@ async fn worker_receive_loop(
     while let Ok((packet_type, body)) = socket.read_raw_packet().await {
         // Read a packet and handle it if interested
         debug!("Received {:?} packet for worker #{}", packet_type, id);
-
-        if log_enabled!(Trace) {
-            let loaded = ReceivedPacket::try_from((packet_type, body.as_slice()));
-            if let Ok(pack) = loaded {
-                trace!("Packet body: {:?}", pack);
-            }
-        }
+        trace!("Packet body: {:?}", body);
 
         match packet_type {
             PacketType::LoginOk => {
@@ -229,7 +217,7 @@ async fn worker_receive_loop(
                 packet_sender.send((packet_type, body))?;
             }
             PacketType::MsgPrivate => {
-                if config.relay_slave_tells {
+                if config.relay_worker_tells {
                     let mut m = MsgPrivatePacket::load(&body)?;
                     debug!("Relaying tell message from worker #{} to main", id);
                     m.message.send_tag =

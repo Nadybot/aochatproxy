@@ -1,11 +1,8 @@
 use dotenv::dotenv;
-use log::{debug, error, info, log_enabled, trace, warn, Level::Trace};
+use log::{debug, error, info, trace, warn};
 use nadylib::{
     models::Channel,
-    packets::{
-        BuddyRemovePacket, IncomingPacket, MsgPrivatePacket, OutgoingPacket, PacketType,
-        ReceivedPacket,
-    },
+    packets::{BuddyRemovePacket, IncomingPacket, MsgPrivatePacket, OutgoingPacket, PacketType},
     AOSocket, Result,
 };
 use tokio::{
@@ -15,7 +12,7 @@ use tokio::{
 };
 use worker::WorkerHandle;
 
-use std::{convert::TryFrom, process::exit, sync::Arc};
+use std::{process::exit, sync::Arc};
 
 mod config;
 mod worker;
@@ -96,17 +93,11 @@ async fn main() -> Result<()> {
             let mut current_buddy = start_at;
             while let Ok(packet) = sock.read_raw_packet().await {
                 debug!("Received {:?} packet from main", packet.0);
-
-                if log_enabled!(Trace) {
-                    let loaded = ReceivedPacket::try_from((packet.0, packet.1.as_slice()));
-                    if let Ok(pack) = loaded {
-                        trace!("Packet body: {:?}", pack);
-                    }
-                }
+                trace!("Packet body: {:?}", packet.1);
 
                 match packet.0 {
                     PacketType::BuddyAdd => {
-                        // Add the buddy on the slave with least buddies
+                        // Add the buddy on the worker with least buddies
                         let mut least_buddies = workers[0].clone();
                         let mut buddy_count = workers[0].get_total_buddies().await;
 
