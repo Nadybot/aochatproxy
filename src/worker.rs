@@ -17,7 +17,7 @@ use tokio::{
     time::{sleep, Duration, Instant},
 };
 
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 // An actor-like struct
 struct Worker {
@@ -242,6 +242,16 @@ async fn run_worker(mut worker: Worker) {
 pub struct WorkerHandle {
     pub id: usize,
     sender: mpsc::Sender<WorkerMessage>,
+}
+
+impl fmt::Display for WorkerHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.id == 0 {
+            write!(f, "main")
+        } else {
+            write!(f, "worker #{}", self.id)
+        }
+    }
 }
 
 impl WorkerHandle {

@@ -109,14 +109,10 @@ async fn main() -> Result<()> {
                             }
                         }
 
-                        if least_buddies.id == 0 {
-                            debug!("Adding buddy on main ({} current buddies)", buddy_count);
-                        } else {
-                            debug!(
-                                "Adding buddy on worker #{} ({} current buddies)",
-                                least_buddies.id, buddy_count
-                            );
-                        }
+                        debug!(
+                            "Adding buddy on {} ({} current buddies)",
+                            least_buddies, buddy_count
+                        );
                         least_buddies.send_packet(packet).await;
                     }
                     PacketType::BuddyRemove => {
@@ -125,10 +121,7 @@ async fn main() -> Result<()> {
                         // Remove the buddy on the workers that have it on the buddy list
                         for worker in workers.iter() {
                             if worker.has_buddy(b.character_id).await {
-                                debug!(
-                                    "Removing buddy {} on worker #{}",
-                                    b.character_id, worker.id
-                                );
+                                debug!("Removing buddy {} on {}", b.character_id, worker);
                                 worker.send_packet(packet.clone()).await;
                             }
                         }
