@@ -48,9 +48,15 @@ impl Worker {
         packet_sender: mpsc::UnboundedSender<SerializedPacket>,
         logged_in: Arc<Notify>,
     ) -> Self {
-        let socket = AOSocket::connect(config.server_address.clone(), SocketConfig::default())
+        let mut conf = SocketConfig::default();
+        if id == 0 {
+            conf = conf.keepalive(false);
+        }
+
+        let socket = AOSocket::connect(config.server_address.clone(), conf)
             .await
             .unwrap();
+
         let sender = socket.get_sender();
 
         let buddies = Arc::new(DashSet::new());
