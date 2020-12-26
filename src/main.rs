@@ -1,10 +1,14 @@
+use communication::SendMode;
 use dotenv::dotenv;
 use log::{debug, error, info, trace, warn};
 use nadylib::{
     models::Channel,
-    packets::{BuddyRemovePacket, IncomingPacket, MsgPrivatePacket, OutgoingPacket, PacketType},
+    packets::{
+        BuddyRemovePacket, IncomingPacket, MsgPrivatePacket, OutgoingPacket, PacketType, PingPacket,
+    },
     AOSocket, Result, SocketConfig,
 };
+use serde_json::{from_str, to_string};
 use tokio::{
     net::TcpListener,
     select, spawn,
@@ -12,8 +16,13 @@ use tokio::{
 };
 use worker::WorkerHandle;
 
-use std::{process::exit, sync::Arc};
+use std::{
+    process::exit,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
+mod communication;
 mod config;
 mod worker;
 
@@ -26,17 +35,29 @@ async fn main() -> Result<()> {
         error!("Configuration Error: {}", e);
         exit(1)
     });
+    let started_at = SystemTime::now();
+    let started_at_unix = started_at.duration_since(UNIX_EPOCH).unwrap().as_secs();
 
     loop {
         let spam_bot_support = config.spam_bot_support;
         let send_tells_over_main = config.send_tells_over_main;
-        let relay_by_id = config.relay_by_id;
         let account_num = config.accounts.len();
+        let worker_names: Vec<String> = config
+            .accounts
+            .iter()
+            .map(|i| i.character.clone())
+            .collect();
+
+        let default_mode = match config.relay_by_id {
+            true => communication::SendMode::ByCharId,
+            false => communication::SendMode::RoundRobin,
+        };
 
         let logged_in = Arc::new(Notify::new());
         let logged_in_waiter = logged_in.clone();
 
         let (worker_sender, mut worker_receiver) = unbounded_channel();
+        let command_reply = worker_sender.clone();
 
         // List of workers
         let mut workers: Vec<worker::WorkerHandle> = Vec::with_capacity(account_num + 1);
@@ -128,49 +149,94 @@ async fn main() -> Result<()> {
                     }
                     PacketType::MsgPrivate => {
                         let mut m = MsgPrivatePacket::load(&packet.1).unwrap();
-                        // Order is spam-N -> Modulo -> Round Robin
-                        if !spam_bot_support || !m.message.send_tag.starts_with("spam") {
-                            current_buddy = 0;
-                        } else if m.message.send_tag.starts_with("spam-")
-                            && m.message.send_tag.len() > 5
-                        {
-                            // We ensure there is something after the -
-                            let num: usize = m
-                                .message
-                                .send_tag
-                                .split("-")
-                                .nth(1)
-                                .unwrap()
-                                .parse()
-                                .unwrap_or(current_buddy);
-                            if num <= account_num {
-                                current_buddy = num;
-                            }
-                        } else if relay_by_id {
+
+                        if spam_bot_support && m.message.send_tag != "\u{0}" {
+                            // We assume legacy aka spam tag
+                            let mut send_mode = default_mode;
+                            let mut charid = 0;
                             if let Channel::Tell(id) = m.message.channel {
-                                if send_tells_over_main {
-                                    current_buddy = (id as usize) % (account_num + 1);
-                                } else {
-                                    current_buddy = (id as usize) % account_num + 1;
+                                charid = id as usize;
+                            }
+                            let mut msgid = None;
+                            let mut worker = None;
+
+                            if let Ok(payload) =
+                                from_str::<communication::SendMessagePayload>(&m.message.send_tag)
+                            {
+                                if payload.mode != SendMode::Default {
+                                    send_mode = payload.mode;
                                 }
+                                msgid = payload.msgid;
+                                worker = payload.worker;
+                            } else if m.message.send_tag != "spam" {
+                                // If it is neither new or legacy, use the main
+                                send_mode = communication::SendMode::ByWorker;
+                                worker = Some(0);
                             }
-                        }
 
-                        let serialized = {
-                            if m.message.send_tag.starts_with("spam") {
-                                m.message.send_tag = String::from("\u{0}");
-                                m.serialize()
-                            } else {
-                                packet
-                            }
-                        };
-                        workers[current_buddy].send_packet(serialized).await;
-
-                        if current_buddy == account_num {
-                            current_buddy = start_at;
+                            current_buddy = {
+                                if send_mode == communication::SendMode::ByCharId
+                                    || (send_mode == communication::SendMode::ByMsgId
+                                        && default_mode == communication::SendMode::ByCharId)
+                                {
+                                    if send_tells_over_main {
+                                        (charid) % (account_num + 1)
+                                    } else {
+                                        (charid) % account_num + 1
+                                    }
+                                } else if send_mode == communication::SendMode::ByMsgId
+                                    && msgid.is_some()
+                                {
+                                    if send_tells_over_main {
+                                        msgid.unwrap() % (account_num + 1)
+                                    } else {
+                                        msgid.unwrap() % account_num + 1
+                                    }
+                                } else if send_mode == communication::SendMode::ByWorker
+                                    && worker.is_some()
+                                {
+                                    if send_tells_over_main {
+                                        worker.unwrap() % (account_num + 1)
+                                    } else {
+                                        (worker.unwrap() - 1) % (account_num) + 1
+                                    }
+                                } else if send_mode == communication::SendMode::RoundRobin {
+                                    current_buddy += 1;
+                                    if current_buddy > account_num {
+                                        current_buddy = start_at;
+                                    }
+                                    current_buddy
+                                } else {
+                                    current_buddy
+                                }
+                            };
                         } else {
-                            current_buddy += 1;
+                            current_buddy = 0;
                         }
+
+                        m.message.send_tag = String::from("\u{0}");
+                        let serialized = m.serialize();
+                        workers[current_buddy].send_packet(serialized).await;
+                    }
+                    PacketType::Ping => {
+                        let mut p = PingPacket::load(&packet.1).unwrap();
+
+                        match from_str::<communication::CommandPayload>(&p.client) {
+                            Ok(v) => match v.cmd {
+                                communication::Command::Capabilities => {
+                                    let string = format!(
+                                        r#"{{"name": "aochatproxy", "version": "0.1.0", "default-mode": {}, "workers": {:?}, "started-at": {}, "send_modes": ["round-robin", "by-charid", "by-msgid", "proxy-default", "by-worker"]}}"#,
+                                        to_string(&default_mode).unwrap(),
+                                        worker_names,
+                                        started_at_unix
+                                    );
+                                    p.client = string;
+                                    let serialized = p.serialize();
+                                    let _ = command_reply.send(serialized);
+                                }
+                            },
+                            Err(_) => workers[0].send_packet(packet).await,
+                        };
                     }
                     _ => {
                         let _ = workers[0].send_packet(packet).await;
