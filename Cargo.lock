@@ -55,11 +55,12 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "dashmap"
-version = "4.0.0-rc6"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "308a6703be2d759cb5fb7b80a23547fe73a8d5ebf70d3a4ca7f0ef4c0bfc2265"
+checksum = "f71114c59eb4f52969c1b53526d6e6f0ca89f19775e3ffd6cbabb4f0acc9426a"
 dependencies = [
- "once_cell",
+ "cfg-if 1.0.0",
+ "num_cpus",
 ]
 
 [[package]]
@@ -164,7 +165,7 @@ dependencies = [
 [[package]]
 name = "nadylib"
 version = "0.1.0"
-source = "git+https://github.com/Nadybot/nadylib?branch=unstable#542a72fd102ac9fce609ade98b822c908804f871"
+source = "git+https://github.com/Nadybot/nadylib?branch=unstable#03314eeea4e958802a58374630f606c13b29fa3a"
 dependencies = [
  "byteorder",
  "log",
@@ -246,12 +247,6 @@ dependencies = [
  "quote",
  "syn",
 ]
-
-[[package]]
-name = "once_cell"
-version = "1.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13bd41f508810a131401606d54ac32a467c97172d74ba7662562ebba5ad07fa0"
 
 [[package]]
 name = "pin-project-lite"

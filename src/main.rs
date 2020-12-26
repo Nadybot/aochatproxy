@@ -3,7 +3,7 @@ use log::{debug, error, info, trace, warn};
 use nadylib::{
     models::Channel,
     packets::{BuddyRemovePacket, IncomingPacket, MsgPrivatePacket, OutgoingPacket, PacketType},
-    AOSocket, Result,
+    AOSocket, Result, SocketConfig,
 };
 use tokio::{
     net::TcpListener,
@@ -62,7 +62,7 @@ async fn main() -> Result<()> {
         info!("Client connected from {}", addr);
 
         // Create a socket from the client
-        let mut sock = AOSocket::from_stream(client);
+        let mut sock = AOSocket::from_stream(client, SocketConfig::default().keepalive(false));
 
         let main_worker =
             WorkerHandle::new(0, config.clone(), sock.get_sender(), logged_in.clone()).await;
@@ -128,42 +128,48 @@ async fn main() -> Result<()> {
                     }
                     PacketType::MsgPrivate => {
                         let mut m = MsgPrivatePacket::load(&packet.1).unwrap();
-                        if m.message.send_tag.starts_with("spam") {
-                            let split_parts: Vec<&str> =
-                                m.message.send_tag.splitn(2, "spam-").collect();
-
-                            // If a worker ID is provided via spam-N, use that one next
-                            if split_parts.len() == 2 {
-                                let num: usize = split_parts[1].parse().unwrap_or(current_buddy);
-                                if num <= account_num {
-                                    current_buddy = num;
+                        // Order is spam-N -> Modulo -> Round Robin
+                        if !spam_bot_support || !m.message.send_tag.starts_with("spam") {
+                            current_buddy = 0;
+                        } else if m.message.send_tag.starts_with("spam-")
+                            && m.message.send_tag.len() > 5
+                        {
+                            // We ensure there is something after the -
+                            let num: usize = m
+                                .message
+                                .send_tag
+                                .split("-")
+                                .nth(1)
+                                .unwrap()
+                                .parse()
+                                .unwrap_or(current_buddy);
+                            if num <= account_num {
+                                current_buddy = num;
+                            }
+                        } else if relay_by_id {
+                            if let Channel::Tell(id) = m.message.channel {
+                                if send_tells_over_main {
+                                    current_buddy = (id as usize) % (account_num + 1);
+                                } else {
+                                    current_buddy = (id as usize) % account_num + 1;
                                 }
-                            } else if relay_by_id {
-                                // If we are using modulo strategy, calculate it
-                                if let Channel::Tell(id) = m.message.channel {
-                                    if send_tells_over_main {
-                                        current_buddy = (id as usize) % (account_num + 1);
-                                    } else {
-                                        current_buddy = (id as usize) % account_num + 1;
-                                    }
-                                }
                             }
+                        }
 
-                            m.message.send_tag = String::from("\u{0}");
-                            let serialized = m.serialize();
+                        let serialized = {
+                            if m.message.send_tag.starts_with("spam") {
+                                m.message.send_tag = String::from("\u{0}");
+                                m.serialize()
+                            } else {
+                                packet
+                            }
+                        };
+                        workers[current_buddy].send_packet(serialized).await;
 
-                            if spam_bot_support {
-                                workers[current_buddy].send_packet(serialized).await;
-                            } else {
-                                workers[0].send_packet(serialized).await;
-                            }
-                            if current_buddy == account_num {
-                                current_buddy = start_at;
-                            } else {
-                                current_buddy += 1;
-                            }
+                        if current_buddy == account_num {
+                            current_buddy = start_at;
                         } else {
-                            let _ = workers[0].send_packet(packet).await;
+                            current_buddy += 1;
                         }
                     }
                     _ => {

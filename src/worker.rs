@@ -1,6 +1,6 @@
 use crate::config::Config;
 
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use log::{debug, error, info, trace};
 use mpsc::UnboundedSender;
 use nadylib::{
@@ -9,7 +9,7 @@ use nadylib::{
         LoginSeedPacket, LoginSelectPacket, MsgPrivatePacket, OutgoingPacket, PacketType,
         SerializedPacket,
     },
-    AOSocket, Result,
+    AOSocket, Result, SocketConfig,
 };
 use tokio::{
     spawn,
@@ -22,7 +22,7 @@ use std::{fmt, sync::Arc};
 // An actor-like struct
 struct Worker {
     receiver: mpsc::Receiver<WorkerMessage>,
-    buddies: Arc<DashMap<u32, ()>>,
+    buddies: Arc<DashSet<u32>>,
     pending_buddies: Arc<DashMap<u32, Instant>>,
     packet_sender: mpsc::UnboundedSender<SerializedPacket>,
 }
@@ -48,12 +48,12 @@ impl Worker {
         packet_sender: mpsc::UnboundedSender<SerializedPacket>,
         logged_in: Arc<Notify>,
     ) -> Self {
-        let socket = AOSocket::connect(config.server_address.clone())
+        let socket = AOSocket::connect(config.server_address.clone(), SocketConfig::default())
             .await
             .unwrap();
         let sender = socket.get_sender();
 
-        let buddies = Arc::new(DashMap::new());
+        let buddies = Arc::new(DashSet::new());
         let pending_buddies = Arc::new(DashMap::new());
 
         if id == 0 {
@@ -122,7 +122,7 @@ async fn main_receive_loop(
     mut socket: AOSocket,
     logged_in: Arc<Notify>,
     packet_sender: UnboundedSender<SerializedPacket>,
-    buddies: Arc<DashMap<u32, ()>>,
+    buddies: Arc<DashSet<u32>>,
     pending_buddies: Arc<DashMap<u32, Instant>>,
 ) -> Result<()> {
     while let Ok(packet) = socket.read_raw_packet().await {
@@ -135,7 +135,7 @@ async fn main_receive_loop(
                 let b = BuddyStatusPacket::load(&packet.1).unwrap();
                 debug!("Buddy {} is online: {}", b.character_id, b.online);
                 pending_buddies.remove(&b.character_id);
-                buddies.insert(b.character_id, ());
+                buddies.insert(b.character_id);
             }
             PacketType::BuddyRemove => {
                 let b = BuddyRemovePacket::load(&packet.1).unwrap();
@@ -156,7 +156,7 @@ async fn worker_receive_loop(
     config: Config,
     mut socket: AOSocket,
     packet_sender: UnboundedSender<SerializedPacket>,
-    buddies: Arc<DashMap<u32, ()>>,
+    buddies: Arc<DashSet<u32>>,
     pending_buddies: Arc<DashMap<u32, Instant>>,
 ) -> Result<()> {
     let account = config.accounts[id - 1].clone();
@@ -205,7 +205,7 @@ async fn worker_receive_loop(
                     id, b.character_id, b.online
                 );
                 debug!("Sending BuddyAdd packet from worker #{} to main", id);
-                buddies.insert(b.character_id, ());
+                buddies.insert(b.character_id);
                 pending_buddies.remove(&b.character_id);
                 packet_sender.send((packet_type, body))?;
             }
