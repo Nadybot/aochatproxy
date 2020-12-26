@@ -2,8 +2,8 @@
 ARG RUST_TARGET="x86_64-unknown-linux-musl"
 # Musl target, either x86_64-linux-musl, aarch64-linux-musl, arm-linux-musleabi, etc.
 ARG MUSL_TARGET="x86_64-linux-musl"
-# Final architecture used by dumb-init
-# Uses Kernel Naming (aarch64, x86_64, s390x, ppc64le)
+# Final architecture used by Alpine
+# Uses Kernel Naming (aarch64, armv7, x86_64, s390x, ppc64le)
 ARG FINAL_TARGET="x86_64"
 
 FROM docker.io/library/alpine:edge AS builder
@@ -50,8 +50,13 @@ RUN source $HOME/.cargo/env && \
 FROM docker.io/library/alpine:edge AS dumb-init
 ARG FINAL_TARGET
 
-RUN wget "https://github.com/Yelp/dumb-init/releases/download/v1.2.4/dumb-init_1.2.4_$FINAL_TARGET" -O dumb-init && \
-    chmod +x dumb-init
+RUN apk update && \
+    VERSION=$(apk search dumb-init) && \
+    mkdir out && \
+    cd out && \
+    wget "https://dl-cdn.alpinelinux.org/alpine/edge/community/$FINAL_TARGET/$VERSION.apk" -O dumb-init.apk && \
+    tar xf dumb-init.apk && \
+    mv usr/bin/dumb-init /dumb-init
 
 FROM scratch
 
