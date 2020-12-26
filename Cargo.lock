@@ -165,7 +165,7 @@ dependencies = [
 [[package]]
 name = "nadylib"
 version = "0.1.0"
-source = "git+https://github.com/Nadybot/nadylib?branch=unstable#03314eeea4e958802a58374630f606c13b29fa3a"
+source = "git+https://github.com/Nadybot/nadylib?branch=unstable#053e39af32ee9a27b71842af332eb5c202e0381c"
 dependencies = [
  "byteorder",
  "log",

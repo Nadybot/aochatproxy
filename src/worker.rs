@@ -48,10 +48,7 @@ impl Worker {
         packet_sender: mpsc::UnboundedSender<SerializedPacket>,
         logged_in: Arc<Notify>,
     ) -> Self {
-        let mut conf = SocketConfig::default();
-        if id == 0 {
-            conf = conf.keepalive(false);
-        }
+        let conf = SocketConfig::default().keepalive(id != 0);
 
         let socket = AOSocket::connect(config.server_address.clone(), conf)
             .await
