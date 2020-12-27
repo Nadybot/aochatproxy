@@ -63,7 +63,7 @@ aochatproxy currently returns this (in another `Ping` packet, with different val
   "default-mode": "round-robin",
   "workers": ["charname1", "charname2"],
   "started-at": 57915719575,
-  "send_modes": [
+  "send-modes": [
     "round-robin",
     "by-charid",
     "by-msgid",
@@ -73,7 +73,7 @@ aochatproxy currently returns this (in another `Ping` packet, with different val
 }
 ```
 
-whereas `started-at` is a UNIX timestamp in seconds and `default-mode` any of `send_modes` that will equal `proxy-default`.
+whereas `started-at` is a UNIX timestamp in seconds and `default-mode` any of `send-modes` that will equal `proxy-default`.
 
 ### Buddylist
 
