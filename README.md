@@ -44,10 +44,76 @@ Via Docker/Podman:
 docker run --rm -it --env-file .env quay.io/nadyita/aochatproxy:rust-rewrite
 ```
 
+Release binaries:
+
+Head [here](https://github.com/Nadybot/aochatproxy/releases/latest) and download the binary for your system. Mark it as executable (Shell: `chmod +x aochatproxy-xy`) and then run directly (Shell: `./aochatproxy-xy`). Make sure to have the config set up before.
+
 ## Implementation for clients
 
-For each worker, the bot will send a LoginOk packet to the client to calculate the amount of buddies that it can have. Whenever a BuddyAdd packet is sent from the client, the proxy will instead send it from the worker or client connection, depending on which has the least buddies. BuddyRemove is handled on all of them.
+### Handshake
 
-For outgoing tell messages, they will be proxied over the client by default unless `spam` is used as the routing key instead of `\0`. If spam is enabled for a message and in the config, it will distribute these across all workers to avoid ratelimits.
+Optionally, the bot connected may send a `Ping` packet to the proxy with a body of `{"cmd": "capabilities"}` to determine whether the proxy supports legacy of futureproof messaging.
 
-When relaying tells from workers to the client in the config, the routing key will be e.g. `{"id": 1, "name": "mychar1"}`. This can be used to send `spam-1` as the outgoing key to send a reply over this specific worker.
+aochatproxy currently returns this (with different values possible in default-mode, workers and started-at):
+
+```json
+{
+  "name": "aochatproxy",
+  "version": "0.1.0",
+  "default-mode": "round-robin",
+  "workers": ["charname1", "charname2"],
+  "started-at": 57915719575,
+  "send_modes": [
+    "round-robin",
+    "by-charid",
+    "by-msgid",
+    "proxy-default",
+    "by-worker"
+  ]
+}
+```
+
+whereas `started-at` is a UNIX timestamp in seconds and `default-mode` any of `send_modes` that will equal `proxy-default`.
+
+### Buddylist
+
+For _each_ worker, the bot will send a LoginOk packet to the client. This means when you have 5 workers, you will get a total of 6 LoginOk packets, including your own. From that, you can calculate the buddylist limit by 6 \* 1000 = 6000. The proxy takes care of the rest.
+
+### Spam Messages
+
+Spam messages can use two formats: _Legacy_ or the extensible "futureproof" one with more features.
+
+In any case, when `RELAY_WORKER_TELLS` is enabled, the routing key for messages from workers will be `{"id": 1, "name": "mychar1"}`, which is especially useful for the futureproof format.
+
+#### Legacy
+
+The legacy format uses `spam` as a routing key in the MsgPrivate packets instead of `\0`. It will use whatever is configured on the proxy to distribute them and the client has no further work to do. This only allows for relaying by character ID or round-robin.
+
+#### Futureproof
+
+The modern format uses JSON instead of plaintext in the routing key to enable a multitude of possible relaying options.
+
+```json
+{
+  "mode": "round-robin",
+  "msgid": 1,
+  "worker": 1
+}
+```
+
+`mode` is **required** and has the following options: `round-robin`, `by-charid`, `by-msgid`, `proxy-default`, `by-worker`.
+
+`msgid` is required if `by-msgid` is set as the mode.
+
+`worker` is required if `by-worker` is set as the mode.
+
+The mode configures how the proxy should relay the message across workers. `round-robin` and `by-charid` are the two proxy-native versions and _should_ not be used, instead, `proxy-default` should be preferred. `by-msgid` allows for sending multiple messages (for example a `!config`) with an internal counter so paging messages will arrive from the same worker. `by-worker` will use the worker specified in the payload, which is useful when relaying tells from workers and you want to reply from this worker.
+
+### Ecosystem Support
+
+To be extended.
+
+| Bot                                           | Buddylist | Legacy tells | Modern tells |
+| --------------------------------------------- | --------- | ------------ | ------------ |
+| [Nadybot](https://github.com/Nadybot/Nadybot) | Yes       | Yes          | Yes          |
+| [Tyrbot](https://github.com/Budabot/Tyrbot)   | Yes       | No           | No           |
