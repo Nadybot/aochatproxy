@@ -54,7 +54,7 @@ Head [here](https://github.com/Nadybot/aochatproxy/releases/latest) and download
 
 Optionally, the bot connected may send a `Ping` packet to the proxy with a body of `{"cmd": "capabilities"}` to determine whether the proxy supports legacy of futureproof messaging.
 
-aochatproxy currently returns this (with different values possible in default-mode, workers and started-at):
+aochatproxy currently returns this (in another `Ping` packet, with different values possible in default-mode, workers and started-at):
 
 ```json
 {
