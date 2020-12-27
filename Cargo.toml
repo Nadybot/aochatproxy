@@ -1,6 +1,6 @@
 [package]
 name = "aochatproxy"
-version = "0.1.0"
+version = "3.0.0"
 authors = ["Jens Reidel <adrian@travitia.xyz>"]
 edition = "2018"
 

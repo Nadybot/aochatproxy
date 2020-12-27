@@ -59,7 +59,7 @@ aochatproxy currently returns this (in another `Ping` packet, with different val
 ```json
 {
   "name": "aochatproxy",
-  "version": "0.1.0",
+  "version": "3.0.0",
   "default-mode": "round-robin",
   "workers": ["charname1", "charname2"],
   "started-at": 57915719575,

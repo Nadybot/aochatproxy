@@ -225,7 +225,7 @@ async fn main() -> Result<()> {
                             Ok(v) => match v.cmd {
                                 communication::Command::Capabilities => {
                                     let string = format!(
-                                        r#"{{"name": "aochatproxy", "version": "0.1.0", "default-mode": {}, "workers": {:?}, "started-at": {}, "send-modes": ["round-robin", "by-charid", "by-msgid", "proxy-default", "by-worker"]}}"#,
+                                        r#"{{"name": "aochatproxy", "version": "3.0.0", "default-mode": {}, "workers": {:?}, "started-at": {}, "send-modes": ["round-robin", "by-charid", "by-msgid", "proxy-default", "by-worker"]}}"#,
                                         to_string(&default_mode).unwrap(),
                                         worker_names,
                                         started_at_unix

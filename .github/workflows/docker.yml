@@ -21,14 +21,30 @@ jobs:
           run: |
             echo "${{ secrets.QUAY_PASSWORD }}" | docker login -u "${{ secrets.QUAY_USERNAME }}" --password-stdin quay.io/nadyita
             echo "${{ secrets.GH_TOKEN }}" | docker login -u gelbpunkt --password-stdin ghcr.io
+        - name: Get the version
+          id: vars
+          shell: bash
+          run: |
+            TAG=$(git describe --tags --abbrev=0)
+            VERSION="${TAG}"
+            BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+            if [ "${TAG}" != "$(git describe --tags --abbrev=1)" ]; then
+              TAG="${BRANCH}"
+            fi
+            echo ::set-output name=tag::$(echo ${TAG})
+            echo ::set-output name=branch::$(echo ${BRANCH})
         - name: Build the docker image for x86_64
           shell: bash
           run: |
             docker build --file Dockerfile \
-              --tag "quay.io/nadyita/aochatproxy:rust-rewrite" \
-              --tag "ghcr.io/nadybot/aochatproxy:rust-rewrite" .
+              --tag "quay.io/nadyita/aochatproxy:${{steps.vars.outputs.tag}}" \
+              --tag "quay.io/nadyita/aochatproxy:${{steps.vars.outputs.branch}}" \
+              --tag "ghcr.io/nadybot/aochatproxy:${{steps.vars.outputs.tag}}" \
+              --tag "ghcr.io/nadybot/aochatproxy:${{steps.vars.outputs.branch}}" .
         - name: Push the tagged Docker image
           shell: bash
           run: |
-            docker push "quay.io/nadyita/aochatproxy:rust-rewrite"
-            docker push "ghcr.io/nadybot/aochatproxy:rust-rewrite"
+            docker push "quay.io/nadyita/aochatproxy:${{steps.vars.outputs.tag}}"
+            docker push "quay.io/nadyita/aochatproxy:${{steps.vars.outputs.branch}}"
+            docker push "ghcr.io/nadybot/aochatproxy:${{steps.vars.outputs.tag}}"
+            docker push "ghcr.io/nadybot/aochatproxy:${{steps.vars.outputs.branch}}"
