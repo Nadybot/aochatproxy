@@ -1,5 +1,4 @@
 use communication::SendMode;
-use dotenv::dotenv;
 use log::{debug, error, info, trace, warn};
 use nadylib::{
     models::Channel,
@@ -28,13 +27,13 @@ mod worker;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenv().ok();
+    let conf = config::try_load();
     env_logger::builder().format_timestamp_millis().init();
-
-    let config = config::load_config().unwrap_or_else(|e| {
+    let config = conf.unwrap_or_else(|e| {
         error!("Configuration Error: {}", e);
         exit(1)
     });
+
     let started_at = SystemTime::now();
     let started_at_unix = started_at.duration_since(UNIX_EPOCH).unwrap().as_secs();
 
@@ -48,10 +47,7 @@ async fn main() -> Result<()> {
             .map(|i| i.character.clone())
             .collect();
 
-        let default_mode = match config.relay_by_id {
-            true => communication::SendMode::ByCharId,
-            false => communication::SendMode::RoundRobin,
-        };
+        let default_mode = config.default_mode;
 
         let logged_in = Arc::new(Notify::new());
         let logged_in_waiter = logged_in.clone();

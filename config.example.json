@@ -1,0 +1,21 @@
+{
+    "rust_log": "info",
+    "port_number": 9993,
+    "server_address": "chat.d1.funcom.com:7105",
+    "spam_bot_support": true,
+    "send_tells_over_main": false,
+    "relay_worker_tells": true,
+    "default_mode": "round-robin",
+    "accounts": [
+        {
+            "username": "myaccount1",
+            "password": "mypass1",
+            "character": "mychar1"
+        },
+        {
+            "username": "myaccount2",
+            "password": "mypass2",
+            "character": "mychar2"
+        }
+    ]
+}
