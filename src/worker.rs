@@ -182,6 +182,10 @@ async fn worker_receive_loop(
                 debug!("Sending ClientName packet from worker #{} to main", id);
                 packet_sender.send((packet_type, body))?;
             }
+            PacketType::MsgSystem => {
+                debug!("Sending MsgSystem packet from worker #{} to main", id);
+                packet_sender.send((packet_type, body))?;
+            }
             PacketType::LoginSeed => {
                 let l = LoginSeedPacket::load(&body)?;
                 socket.login(&account.username, &account.password, &l.login_seed)?;
