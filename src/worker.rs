@@ -178,12 +178,11 @@ async fn worker_receive_loop(
                 error!("{} failed to log in", account.character);
                 break;
             }
-            PacketType::ClientName => {
-                debug!("Sending ClientName packet from worker #{} to main", id);
-                packet_sender.send((packet_type, body))?;
-            }
-            PacketType::MsgSystem => {
-                debug!("Sending MsgSystem packet from worker #{} to main", id);
+            PacketType::ClientName | PacketType::MsgSystem => {
+                debug!(
+                    "Sending {:?} packet from worker #{} to main",
+                    packet_type, id
+                );
                 packet_sender.send((packet_type, body))?;
             }
             PacketType::LoginSeed => {

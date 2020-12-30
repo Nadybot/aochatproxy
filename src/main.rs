@@ -3,7 +3,8 @@ use log::{debug, error, info, trace, warn};
 use nadylib::{
     models::Channel,
     packets::{
-        BuddyRemovePacket, IncomingPacket, MsgPrivatePacket, OutgoingPacket, PacketType, PingPacket,
+        BuddyAddPacket, BuddyRemovePacket, IncomingPacket, MsgPrivatePacket, OutgoingPacket,
+        PacketType, PingPacket,
     },
     AOSocket, Result, SocketConfig,
 };
@@ -114,23 +115,43 @@ async fn main() -> Result<()> {
 
                 match packet.0 {
                     PacketType::BuddyAdd => {
-                        // Add the buddy on the worker with least buddies
-                        let mut least_buddies = workers[0].clone();
-                        let mut buddy_count = workers[0].get_total_buddies().await;
+                        let pack = BuddyAddPacket::load(&packet.1).unwrap();
 
-                        for worker in workers.iter().skip(1) {
-                            let worker_buddy_count = worker.get_total_buddies().await;
-                            if worker_buddy_count < buddy_count {
-                                least_buddies = worker.clone();
-                                buddy_count = worker_buddy_count;
-                            }
-                        }
+                        let send_on =
+                            match from_str::<communication::BuddyAddPayload>(&pack.send_tag) {
+                                Ok(v) => {
+                                    // Do not send the packet at all if the worker is invalid
+                                    if v.worker > account_num {
+                                        continue;
+                                    }
+                                    debug!(
+                                        "Adding buddy on {} (forced by packet)",
+                                        workers[v.worker]
+                                    );
+                                    v.worker
+                                }
+                                Err(_) => {
+                                    // Add the buddy on the worker with least buddies
+                                    let mut least_buddies = 0;
+                                    let mut buddy_count = workers[0].get_total_buddies().await;
 
-                        debug!(
-                            "Adding buddy on {} ({} current buddies)",
-                            least_buddies, buddy_count
-                        );
-                        least_buddies.send_packet(packet).await;
+                                    for (id, worker) in workers.iter().enumerate().skip(1) {
+                                        let worker_buddy_count = worker.get_total_buddies().await;
+                                        if worker_buddy_count < buddy_count {
+                                            least_buddies = id;
+                                            buddy_count = worker_buddy_count;
+                                        }
+                                    }
+
+                                    debug!(
+                                        "Adding buddy on {} ({} current buddies)",
+                                        workers[least_buddies], buddy_count
+                                    );
+                                    least_buddies
+                                }
+                            };
+
+                        workers[send_on].send_packet(packet).await;
                     }
                     PacketType::BuddyRemove => {
                         let b = BuddyRemovePacket::load(&packet.1).unwrap();
@@ -221,7 +242,7 @@ async fn main() -> Result<()> {
                             Ok(v) => match v.cmd {
                                 communication::Command::Capabilities => {
                                     let string = format!(
-                                        r#"{{"name": "aochatproxy", "version": "3.0.0", "default-mode": {}, "workers": {:?}, "started-at": {}, "send-modes": ["round-robin", "by-charid", "by-msgid", "proxy-default", "by-worker"]}}"#,
+                                        r#"{{"name": "aochatproxy", "version": "3.1.0", "default-mode": {}, "workers": {:?}, "started-at": {}, "send-modes": ["round-robin", "by-charid", "by-msgid", "proxy-default", "by-worker"], "buddy-modes": ["by-worker"]}}"#,
                                         to_string(&default_mode).unwrap(),
                                         worker_names,
                                         started_at_unix

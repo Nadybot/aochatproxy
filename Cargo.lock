@@ -2,7 +2,7 @@
 # It is not intended for manual editing.
 [[package]]
 name = "aochatproxy"
-version = "3.0.0"
+version = "3.1.0"
 dependencies = [
  "dashmap",
  "dotenv",
@@ -173,7 +173,7 @@ dependencies = [
 [[package]]
 name = "nadylib"
 version = "0.1.0"
-source = "git+https://github.com/Nadybot/nadylib?branch=unstable#053e39af32ee9a27b71842af332eb5c202e0381c"
+source = "git+https://github.com/Nadybot/nadylib?branch=unstable#481bc7f231308c01ac2dbbfbbac450b1bd961e17"
 dependencies = [
  "byteorder",
  "log",

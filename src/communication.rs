@@ -31,3 +31,8 @@ pub struct SendMessagePayload {
     pub msgid: Option<usize>,
     pub worker: Option<usize>,
 }
+
+#[derive(Deserialize, Debug)]
+pub struct BuddyAddPayload {
+    pub worker: usize,
+}

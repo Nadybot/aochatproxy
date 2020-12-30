@@ -149,9 +149,11 @@ pub fn load_from_env() -> Result<Config, ConfigError> {
         Ok(v) => match v.as_str() {
             "round-robin" => SendMode::RoundRobin,
             "by-charid" => SendMode::ByCharId,
-            _ => Err(ConfigError::InvalidConfig(String::from(
-                "DEFAULT_MODE must be round-robin or by-charid",
-            )))?,
+            _ => {
+                return Err(ConfigError::InvalidConfig(String::from(
+                    "DEFAULT_MODE must be round-robin or by-charid",
+                )))
+            }
         },
         Err(_) => {
             let relay_by_id: bool = var("RELAY_BY_ID")
@@ -195,9 +197,11 @@ pub fn load_from_file(path: String) -> Result<Config, ConfigError> {
 
     match config.default_mode {
         SendMode::ByCharId | SendMode::RoundRobin => {}
-        _ => Err(ConfigError::InvalidConfig(String::from(
-            "default_mode must be round-robin or by-charid",
-        )))?,
+        _ => {
+            return Err(ConfigError::InvalidConfig(String::from(
+                "default_mode must be round-robin or by-charid",
+            )))
+        }
     };
 
     // We cannot send tells in this case
