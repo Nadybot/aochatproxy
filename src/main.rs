@@ -1,6 +1,7 @@
 use communication::SendMode;
 use log::{debug, error, info, trace, warn};
 use nadylib::{
+    client_socket::SocketSendHandle,
     models::Channel,
     packets::{
         BuddyAddPacket, BuddyRemovePacket, IncomingPacket, MsgPrivatePacket, OutgoingPacket,
@@ -62,14 +63,10 @@ async fn main() -> Result<()> {
         // Create all workers
         for (idx, acc) in config.accounts.iter().enumerate() {
             info!("Spawning worker for {}", acc.character);
+            let handle = SocketSendHandle::new(worker_sender.clone(), None);
 
-            let worker = WorkerHandle::new(
-                idx + 1,
-                config.clone(),
-                worker_sender.clone(),
-                logged_in.clone(),
-            )
-            .await;
+            let worker =
+                WorkerHandle::new(idx + 1, config.clone(), handle, logged_in.clone()).await;
             workers.push(worker);
         }
 
@@ -80,7 +77,10 @@ async fn main() -> Result<()> {
         info!("Client connected from {}", addr);
 
         // Create a socket from the client
-        let mut sock = AOSocket::from_stream(client, SocketConfig::default().keepalive(false));
+        let mut sock = AOSocket::from_stream(
+            client,
+            SocketConfig::default().keepalive(false).limit_tells(false),
+        );
 
         let main_worker =
             WorkerHandle::new(0, config.clone(), sock.get_sender(), logged_in.clone()).await;
@@ -93,7 +93,7 @@ async fn main() -> Result<()> {
             logged_in_waiter.notified().await;
             info!("Main logged in, relaying packets now");
             while let Some(msg) = worker_receiver.recv().await {
-                let _ = sock_to_workers.send(msg);
+                let _ = sock_to_workers.send_raw(msg.0, msg.1).await;
             }
         });
 

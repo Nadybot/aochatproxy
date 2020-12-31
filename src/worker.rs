@@ -2,12 +2,11 @@ use crate::config::Config;
 
 use dashmap::{DashMap, DashSet};
 use log::{debug, error, info, trace};
-use mpsc::UnboundedSender;
 use nadylib::{
+    client_socket::SocketSendHandle,
     packets::{
         BuddyAddPacket, BuddyRemovePacket, BuddyStatusPacket, IncomingPacket, LoginCharlistPacket,
-        LoginSeedPacket, LoginSelectPacket, MsgPrivatePacket, OutgoingPacket, PacketType,
-        SerializedPacket,
+        LoginSeedPacket, LoginSelectPacket, MsgPrivatePacket, PacketType, SerializedPacket,
     },
     AOSocket, Result, SocketConfig,
 };
@@ -24,7 +23,7 @@ struct Worker {
     receiver: mpsc::Receiver<WorkerMessage>,
     buddies: Arc<DashSet<u32>>,
     pending_buddies: Arc<DashMap<u32, Instant>>,
-    packet_sender: mpsc::UnboundedSender<SerializedPacket>,
+    packet_sender: SocketSendHandle,
 }
 
 enum WorkerMessage {
@@ -45,7 +44,7 @@ impl Worker {
         id: usize,
         config: Config,
         receiver: mpsc::Receiver<WorkerMessage>,
-        packet_sender: mpsc::UnboundedSender<SerializedPacket>,
+        packet_sender: SocketSendHandle,
         logged_in: Arc<Notify>,
     ) -> Self {
         let conf = SocketConfig::default().keepalive(id != 0);
@@ -88,7 +87,7 @@ impl Worker {
         }
     }
 
-    fn handle_message(&mut self, msg: WorkerMessage) {
+    async fn handle_message(&mut self, msg: WorkerMessage) {
         match msg {
             WorkerMessage::GetTotalBuddies { respond_to } => {
                 let count = self.buddies.len() + self.pending_buddies.len();
@@ -102,7 +101,7 @@ impl Worker {
                     }
                 }
 
-                let _ = self.packet_sender.send(packet);
+                let _ = self.packet_sender.send_raw(packet.0, packet.1).await;
             }
             WorkerMessage::HasBuddy { id, respond_to } => {
                 let has = self.buddies.get(&id).is_some();
@@ -124,7 +123,7 @@ pub async fn remove_pending_buddies(pending_buddies: Arc<DashMap<u32, Instant>>)
 async fn main_receive_loop(
     mut socket: AOSocket,
     logged_in: Arc<Notify>,
-    packet_sender: UnboundedSender<SerializedPacket>,
+    packet_sender: SocketSendHandle,
     buddies: Arc<DashSet<u32>>,
     pending_buddies: Arc<DashMap<u32, Instant>>,
 ) -> Result<()> {
@@ -148,7 +147,7 @@ async fn main_receive_loop(
             _ => {}
         }
 
-        let _ = packet_sender.send(packet);
+        let _ = packet_sender.send_raw(packet.0, packet.1).await;
     }
 
     Ok(())
@@ -158,7 +157,7 @@ async fn worker_receive_loop(
     id: usize,
     config: Config,
     mut socket: AOSocket,
-    packet_sender: UnboundedSender<SerializedPacket>,
+    packet_sender: SocketSendHandle,
     buddies: Arc<DashSet<u32>>,
     pending_buddies: Arc<DashMap<u32, Instant>>,
 ) -> Result<()> {
@@ -172,7 +171,7 @@ async fn worker_receive_loop(
             PacketType::LoginOk => {
                 info!("{} logged in", account.character);
                 debug!("Sending LoginOk packet from worker #{} to main", id);
-                packet_sender.send((packet_type, body))?;
+                packet_sender.send_raw(packet_type, body).await?;
             }
             PacketType::LoginError => {
                 error!("{} failed to log in", account.character);
@@ -183,11 +182,13 @@ async fn worker_receive_loop(
                     "Sending {:?} packet from worker #{} to main",
                     packet_type, id
                 );
-                packet_sender.send((packet_type, body))?;
+                packet_sender.send_raw(packet_type, body).await?;
             }
             PacketType::LoginSeed => {
                 let l = LoginSeedPacket::load(&body)?;
-                socket.login(&account.username, &account.password, &l.login_seed)?;
+                socket
+                    .login(&account.username, &account.password, &l.login_seed)
+                    .await?;
             }
             PacketType::LoginCharlist => {
                 let c = LoginCharlistPacket::load(&body)?;
@@ -195,7 +196,7 @@ async fn worker_receive_loop(
                     let pack = LoginSelectPacket {
                         character_id: character.id,
                     };
-                    socket.send(pack)?;
+                    socket.send(pack).await?;
                 } else {
                     error!(
                         "Character {} is not on account {}",
@@ -213,14 +214,14 @@ async fn worker_receive_loop(
                 debug!("Sending BuddyAdd packet from worker #{} to main", id);
                 buddies.insert(b.character_id);
                 pending_buddies.remove(&b.character_id);
-                packet_sender.send((packet_type, body))?;
+                packet_sender.send_raw(packet_type, body).await?;
             }
             PacketType::BuddyRemove => {
                 let b = BuddyRemovePacket::load(&body)?;
                 debug!("Worker #{}: Buddy {} removed", id, b.character_id);
                 debug!("Sending BuddyRemove packet from worker #{} to main", id);
                 buddies.remove(&b.character_id);
-                packet_sender.send((packet_type, body))?;
+                packet_sender.send_raw(packet_type, body).await?;
             }
             PacketType::MsgPrivate => {
                 if config.relay_worker_tells {
@@ -228,7 +229,7 @@ async fn worker_receive_loop(
                     debug!("Relaying tell message from worker #{} to main", id);
                     m.message.send_tag =
                         format!("{{\"id\": {}, \"name\": {:?}}}", id, account.character);
-                    packet_sender.send(m.serialize())?;
+                    packet_sender.send(m).await?;
                 }
             }
             _ => {}
@@ -240,7 +241,7 @@ async fn worker_receive_loop(
 
 async fn run_worker(mut worker: Worker) {
     while let Some(msg) = worker.receiver.recv().await {
-        worker.handle_message(msg);
+        worker.handle_message(msg).await;
     }
 }
 
@@ -264,7 +265,7 @@ impl WorkerHandle {
     pub async fn new(
         id: usize,
         config: Config,
-        packet_sender: UnboundedSender<SerializedPacket>,
+        packet_sender: SocketSendHandle,
         logged_in: Arc<Notify>,
     ) -> Self {
         let (sender, receiver) = mpsc::channel(1000);
