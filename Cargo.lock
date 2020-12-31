@@ -257,7 +257,7 @@ dependencies = [
 [[package]]
 name = "nadylib"
 version = "0.1.0"
-source = "git+https://github.com/Nadybot/nadylib?branch=unstable#c4c448edd398247aa1004ae16768f884edcf8400"
+source = "git+https://github.com/Nadybot/nadylib?branch=unstable#718c8764439db4898e3bde54876860dc731f089c"
 dependencies = [
  "byteorder",
  "leaky-bucket",

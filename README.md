@@ -60,6 +60,7 @@ aochatproxy currently returns this (in another `Ping` packet, with different val
 {
   "name": "aochatproxy",
   "version": "3.1.0",
+  "rate-limited": true,
   "default-mode": "round-robin",
   "workers": ["charname1", "charname2"],
   "started-at": 57915719575,
