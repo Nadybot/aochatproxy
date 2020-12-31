@@ -59,7 +59,7 @@ aochatproxy currently returns this (in another `Ping` packet, with different val
 ```json
 {
   "name": "aochatproxy",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "default-mode": "round-robin",
   "workers": ["charname1", "charname2"],
   "started-at": 57915719575,
@@ -69,7 +69,8 @@ aochatproxy currently returns this (in another `Ping` packet, with different val
     "by-msgid",
     "proxy-default",
     "by-worker"
-  ]
+  ],
+  "buddy-modes": ["by-worker"]
 }
 ```
 
@@ -78,6 +79,8 @@ whereas `started-at` is a UNIX timestamp in seconds and `default-mode` any of `s
 ### Buddylist
 
 For _each_ worker, the bot will send a LoginOk packet to the client. This means when you have 5 workers, you will get a total of 6 LoginOk packets, including your own. From that, you can calculate the buddylist limit by 6 \* 1000 = 6000. The proxy takes care of the rest.
+
+You may send `{"mode": "by-worker", "worker": 1}` as the routing key on BuddyAdd to force adding a buddy on worker 1 instead of the default choice (lowest buddy count).
 
 ### Spam Messages
 
