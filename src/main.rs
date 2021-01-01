@@ -39,17 +39,26 @@ async fn main() -> Result<()> {
     let started_at = SystemTime::now();
     let started_at_unix = started_at.duration_since(UNIX_EPOCH).unwrap().as_secs();
 
-    loop {
-        let spam_bot_support = config.spam_bot_support;
-        let send_tells_over_main = config.send_tells_over_main;
-        let account_num = config.accounts.len();
-        let worker_names: Vec<String> = config
-            .accounts
-            .iter()
-            .map(|i| i.character.clone())
-            .collect();
+    let spam_bot_support = config.spam_bot_support;
+    let send_tells_over_main = config.send_tells_over_main;
+    let account_num = config.accounts.len();
+    let worker_names: Vec<String> = config
+        .accounts
+        .iter()
+        .map(|i| i.character.clone())
+        .collect();
 
-        let default_mode = config.default_mode;
+    let default_mode = config.default_mode;
+
+    let identifier = format!(
+        r#"{{"name": "aochatproxy", "version": "4.0.0-pre", "rate-limited": true, "default-mode": {}, "workers": {:?}, "started-at": {}, "send-modes": ["round-robin", "by-charid", "by-msgid", "proxy-default", "by-worker"], "buddy-modes": ["by-worker"]}}"#,
+        to_string(&default_mode).unwrap(),
+        worker_names,
+        started_at_unix
+    );
+
+    loop {
+        let identifier_clone = identifier.clone();
 
         let logged_in = Arc::new(Notify::new());
         let logged_in_waiter = logged_in.clone();
@@ -241,13 +250,7 @@ async fn main() -> Result<()> {
                         match from_str::<communication::CommandPayload>(&p.client) {
                             Ok(v) => match v.cmd {
                                 communication::Command::Capabilities => {
-                                    let string = format!(
-                                        r#"{{"name": "aochatproxy", "version": "3.1.0", "rate-limited": true, "default-mode": {}, "workers": {:?}, "started-at": {}, "send-modes": ["round-robin", "by-charid", "by-msgid", "proxy-default", "by-worker"], "buddy-modes": ["by-worker"]}}"#,
-                                        to_string(&default_mode).unwrap(),
-                                        worker_names,
-                                        started_at_unix
-                                    );
-                                    p.client = string;
+                                    p.client = identifier_clone.clone();
                                     let serialized = p.serialize();
                                     let _ = command_reply.send(serialized);
                                 }
