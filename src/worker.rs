@@ -6,7 +6,8 @@ use nadylib::{
     client_socket::SocketSendHandle,
     packets::{
         BuddyAddPacket, BuddyRemovePacket, BuddyStatusPacket, IncomingPacket, LoginCharlistPacket,
-        LoginSeedPacket, LoginSelectPacket, MsgPrivatePacket, PacketType, SerializedPacket,
+        LoginSeedPacket, LoginSelectPacket, MsgPrivatePacket, PacketType, PingPacket,
+        SerializedPacket,
     },
     AOSocket, Result, SocketConfig,
 };
@@ -232,6 +233,12 @@ async fn worker_receive_loop(
                     debug!("Relaying tell message from worker #{} to main", id);
                     m.message.send_tag = identifier.clone();
                     packet_sender.send(m).await?;
+                }
+            }
+            PacketType::Ping => {
+                let p = PingPacket::load(&body)?;
+                if p.client != "nadylib" {
+                    packet_sender.send_raw(packet_type, body).await?;
                 }
             }
             _ => {}

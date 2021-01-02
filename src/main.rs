@@ -257,6 +257,12 @@ async fn main() -> Result<()> {
                                     let serialized = p.serialize();
                                     let _ = command_reply.send(serialized);
                                 }
+                                communication::Command::Ping => {
+                                    if let (Some(worker), Some(payload)) = (v.worker, v.payload) {
+                                        let packet = PingPacket { client: payload };
+                                        workers[worker].send_packet(packet.serialize()).await;
+                                    }
+                                }
                             },
                             Err(_) => workers[0].send_packet(packet).await,
                         };

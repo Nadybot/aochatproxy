@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 pub enum Command {
     #[serde(rename = "capabilities")]
     Capabilities,
+    #[serde(rename = "ping")]
+    Ping,
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Copy, Clone)]
@@ -23,6 +25,8 @@ pub enum SendMode {
 #[derive(Deserialize, Debug)]
 pub struct CommandPayload {
     pub cmd: Command,
+    pub worker: Option<usize>,
+    pub payload: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
