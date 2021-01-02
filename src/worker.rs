@@ -162,6 +162,8 @@ async fn worker_receive_loop(
     pending_buddies: Arc<DashMap<u32, Instant>>,
 ) -> Result<()> {
     let account = config.accounts[id - 1].clone();
+    let identifier = format!(r#"{{"id": {}, "name": {:?}}}"#, id, account.character);
+
     while let Ok((packet_type, body)) = socket.read_raw_packet().await {
         // Read a packet and handle it if interested
         debug!("Received {:?} packet for worker #{}", packet_type, id);
@@ -206,15 +208,16 @@ async fn worker_receive_loop(
                 }
             }
             PacketType::BuddyAdd => {
-                let b = BuddyStatusPacket::load(&body)?;
+                let mut b = BuddyStatusPacket::load(&body)?;
                 debug!(
                     "Worker #{}: Buddy {} is online: {}",
                     id, b.character_id, b.online
                 );
                 debug!("Sending BuddyAdd packet from worker #{} to main", id);
+                b.send_tag = identifier.clone();
                 buddies.insert(b.character_id);
                 pending_buddies.remove(&b.character_id);
-                packet_sender.send_raw(packet_type, body).await?;
+                packet_sender.send(b).await?;
             }
             PacketType::BuddyRemove => {
                 let b = BuddyRemovePacket::load(&body)?;
@@ -227,8 +230,7 @@ async fn worker_receive_loop(
                 if config.relay_worker_tells {
                     let mut m = MsgPrivatePacket::load(&body)?;
                     debug!("Relaying tell message from worker #{} to main", id);
-                    m.message.send_tag =
-                        format!("{{\"id\": {}, \"name\": {:?}}}", id, account.character);
+                    m.message.send_tag = identifier.clone();
                     packet_sender.send(m).await?;
                 }
             }

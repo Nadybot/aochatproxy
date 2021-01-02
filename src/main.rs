@@ -179,10 +179,13 @@ async fn main() -> Result<()> {
                         if spam_bot_support && m.message.send_tag != "\u{0}" {
                             // We assume legacy aka spam tag
                             let mut send_mode = default_mode;
-                            let mut charid = 0;
-                            if let Channel::Tell(id) = m.message.channel {
-                                charid = id as usize;
-                            }
+                            let charid = {
+                                if let Channel::Tell(id) = m.message.channel {
+                                    id as usize
+                                } else {
+                                    unreachable!();
+                                }
+                            };
                             let mut msgid = None;
                             let mut worker = None;
 
