@@ -13,8 +13,13 @@ env_logger = { version = "0.8", default-features = false, features = ["termcolor
 log = "0.4"
 nadylib = { git = "https://github.com/Nadybot/nadylib", branch = "unstable", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde_json = { version = "1.0", optional = true }
+simd-json = { version = "0.3", default-features = false, features = ["serde_impl"], optional = true }
 tokio = { version = "1.0", default-features = false, features = ["macros", "rt-multi-thread"] }
+
+[features]
+default = ["serde-json"]
+serde-json = ["serde_json"]
 
 [profile.release]
 codegen-units = 1

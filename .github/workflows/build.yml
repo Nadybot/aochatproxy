@@ -33,6 +33,12 @@ jobs:
           cargo build --release
           cp target/release/aochatproxy aochatproxy-linux-x86_64
 
+      - name: Build SIMD x86_64
+        run: |
+          export RUSTFLAGS="-C target-cpu=haswell"
+          cargo build --release
+          cp target/release/aochatproxy aochatproxy-linux-x86_64-optimized
+
       - name: Set up Rust for aarch64
         uses: actions-rs/toolchain@v1
         with:
@@ -65,6 +71,7 @@ jobs:
           name: aochatproxy-linux
           path: |
             aochatproxy-linux-x86_64
+            aochatproxy-linux-x86_64-optimized
             aochatproxy-linux-aarch64
             aochatproxy-linux-armv7
 

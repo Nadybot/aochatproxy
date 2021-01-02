@@ -2,8 +2,10 @@ use crate::communication::SendMode;
 
 use dotenv::dotenv;
 use serde::Deserialize;
+#[cfg(not(feature = "simd-json"))]
 use serde_json::from_str;
-
+#[cfg(feature = "simd-json")]
+use simd_json::from_str;
 use std::{
     env::{args, set_var, var},
     fmt::{Display, Formatter, Result as FmtResult},
@@ -178,9 +180,9 @@ pub fn load_from_env() -> Result<Config, ConfigError> {
 }
 
 pub fn load_from_file(path: String) -> Result<Config, ConfigError> {
-    let content = read_to_string(&path).map_err(|_| ConfigError::NotFound(path))?;
+    let mut content = read_to_string(&path).map_err(|_| ConfigError::NotFound(path))?;
     let config: Config =
-        from_str(&content).map_err(|e| ConfigError::InvalidConfig(e.to_string()))?;
+        from_str(&mut content).map_err(|e| ConfigError::InvalidConfig(e.to_string()))?;
     if let Some(level) = &config.rust_log {
         set_var("RUST_LOG", level);
     }

@@ -9,7 +9,10 @@ use nadylib::{
     },
     AOSocket, Result, SocketConfig,
 };
+#[cfg(not(feature = "simd-json"))]
 use serde_json::{from_str, to_string};
+#[cfg(feature = "simd-json")]
+use simd_json::{from_str, to_string};
 use tokio::{
     net::TcpListener,
     select, spawn,
@@ -124,10 +127,10 @@ async fn main() -> Result<()> {
 
                 match packet.0 {
                     PacketType::BuddyAdd => {
-                        let pack = BuddyAddPacket::load(&packet.1).unwrap();
+                        let mut pack = BuddyAddPacket::load(&packet.1).unwrap();
 
                         let send_on =
-                            match from_str::<communication::BuddyAddPayload>(&pack.send_tag) {
+                            match from_str::<communication::BuddyAddPayload>(&mut pack.send_tag) {
                                 Ok(v) => {
                                     // Do not send the packet at all if the worker is invalid
                                     if v.worker > account_num {
@@ -189,9 +192,9 @@ async fn main() -> Result<()> {
                             let mut msgid = None;
                             let mut worker = None;
 
-                            if let Ok(payload) =
-                                from_str::<communication::SendMessagePayload>(&m.message.send_tag)
-                            {
+                            if let Ok(payload) = from_str::<communication::SendMessagePayload>(
+                                &mut m.message.send_tag,
+                            ) {
                                 if payload.mode != SendMode::Default {
                                     send_mode = payload.mode;
                                 }
@@ -250,7 +253,7 @@ async fn main() -> Result<()> {
                     PacketType::Ping => {
                         let mut p = PingPacket::load(&packet.1).unwrap();
 
-                        match from_str::<communication::CommandPayload>(&p.client) {
+                        match from_str::<communication::CommandPayload>(&mut p.client) {
                             Ok(v) => match v.cmd {
                                 communication::Command::Capabilities => {
                                     p.client = identifier_clone.clone();
