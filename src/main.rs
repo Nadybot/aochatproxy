@@ -51,7 +51,7 @@ async fn main() -> Result<()> {
     let default_mode = config.default_mode;
 
     let identifier = format!(
-        r#"{{"name": "aochatproxy", "version": "4.0.0-pre", "rate-limited": true, "default-mode": {}, "workers": {:?}, "started-at": {}, "send-modes": ["round-robin", "by-charid", "by-msgid", "proxy-default", "by-worker"], "buddy-modes": ["by-worker"]}}"#,
+        r#"{{"name": "aochatproxy", "version": "4.0.0-pre", "type": "capabilities", "rate-limited": true, "default-mode": {}, "workers": {:?}, "started-at": {}, "send-modes": ["round-robin", "by-charid", "by-msgid", "proxy-default", "by-worker"], "buddy-modes": ["by-worker"]}}"#,
         to_string(&default_mode).unwrap(),
         worker_names,
         started_at_unix
