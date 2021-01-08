@@ -91,6 +91,7 @@ impl Worker {
     async fn handle_message(&mut self, msg: WorkerMessage) {
         match msg {
             WorkerMessage::GetTotalBuddies { respond_to } => {
+                trace!("Pending buddies are {}", self.pending_buddies.len());
                 let count = self.buddies.len() + self.pending_buddies.len();
                 let _ = respond_to.send(count);
             }
@@ -105,7 +106,7 @@ impl Worker {
                 let _ = self.packet_sender.send_raw(packet.0, packet.1).await;
             }
             WorkerMessage::HasBuddy { id, respond_to } => {
-                let has = self.buddies.get(&id).is_some();
+                let has = self.buddies.contains(&id) || self.pending_buddies.contains_key(&id);
                 let _ = respond_to.send(has);
             }
         }
@@ -113,11 +114,12 @@ impl Worker {
 }
 
 pub async fn remove_pending_buddies(pending_buddies: Arc<DashMap<u32, Instant>>) {
-    let interval = Duration::from_secs(10);
+    let interval = Duration::from_secs(20);
     loop {
         sleep(interval).await;
         let now = Instant::now();
-        pending_buddies.retain(|_, v| *v + interval < now);
+        pending_buddies.retain(|_, v| *v + interval > now);
+        debug!("Sweeped pending buddies");
     }
 }
 
@@ -136,13 +138,13 @@ async fn main_receive_loop(
             PacketType::LoginOk => logged_in.notify_waiters(),
             PacketType::BuddyAdd => {
                 let b = BuddyStatusPacket::load(&packet.1).unwrap();
-                debug!("Buddy {} is online: {}", b.character_id, b.online);
+                debug!("Main: Buddy {} is online: {}", b.character_id, b.online);
                 pending_buddies.remove(&b.character_id);
                 buddies.insert(b.character_id);
             }
             PacketType::BuddyRemove => {
                 let b = BuddyRemovePacket::load(&packet.1).unwrap();
-                debug!("Buddy {} removed", b.character_id);
+                debug!("Main: Buddy {} removed", b.character_id);
                 buddies.remove(&b.character_id);
             }
             _ => {}
