@@ -6,15 +6,14 @@ use nadylib::{
     client_socket::SocketSendHandle,
     packets::{
         BuddyAddPacket, BuddyRemovePacket, BuddyStatusPacket, IncomingPacket, LoginCharlistPacket,
-        LoginSeedPacket, LoginSelectPacket, MsgPrivatePacket, PacketType, PingPacket,
-        SerializedPacket,
+        LoginSeedPacket, LoginSelectPacket, MsgPrivatePacket, OutgoingPacket, PacketType,
+        PingPacket, SerializedPacket,
     },
     AOSocket, Result, SocketConfig,
 };
 use tokio::{
     spawn,
     sync::{mpsc, oneshot, Notify},
-    time::{sleep, Duration, Instant},
 };
 
 use std::{fmt, sync::Arc};
@@ -23,8 +22,9 @@ use std::{fmt, sync::Arc};
 struct Worker {
     receiver: mpsc::Receiver<WorkerMessage>,
     buddies: Arc<DashSet<u32>>,
-    pending_buddies: Arc<DashMap<u32, Instant>>,
+    pending_buddies: Arc<DashMap<u32, u32>>,
     packet_sender: SocketSendHandle,
+    counter: u32,
 }
 
 enum WorkerMessage {
@@ -78,13 +78,12 @@ impl Worker {
             ));
         }
 
-        spawn(remove_pending_buddies(pending_buddies.clone()));
-
         Worker {
             receiver,
             buddies,
             packet_sender: sender,
             pending_buddies,
+            counter: 0,
         }
     }
 
@@ -95,11 +94,14 @@ impl Worker {
                 let count = self.buddies.len() + self.pending_buddies.len();
                 let _ = respond_to.send(count);
             }
-            WorkerMessage::SendPacket { packet } => {
+            WorkerMessage::SendPacket { mut packet } => {
                 if let PacketType::BuddyAdd = packet.0 {
-                    if let Ok(pack) = BuddyAddPacket::load(&packet.1) {
-                        self.pending_buddies
-                            .insert(pack.character_id, Instant::now());
+                    if let Ok(mut pack) = BuddyAddPacket::load(&packet.1) {
+                        let current = self.counter;
+                        pack.send_tag = current.to_string();
+                        packet = pack.serialize();
+                        self.counter = self.counter.wrapping_add(1);
+                        self.pending_buddies.insert(pack.character_id, current);
                     }
                 }
 
@@ -113,22 +115,12 @@ impl Worker {
     }
 }
 
-pub async fn remove_pending_buddies(pending_buddies: Arc<DashMap<u32, Instant>>) {
-    let interval = Duration::from_secs(20);
-    loop {
-        sleep(interval).await;
-        let now = Instant::now();
-        pending_buddies.retain(|_, v| *v + interval > now);
-        debug!("Sweeped pending buddies");
-    }
-}
-
 async fn main_receive_loop(
     mut socket: AOSocket,
     logged_in: Arc<Notify>,
     packet_sender: SocketSendHandle,
     buddies: Arc<DashSet<u32>>,
-    pending_buddies: Arc<DashMap<u32, Instant>>,
+    pending_buddies: Arc<DashMap<u32, u32>>,
 ) -> Result<()> {
     while let Ok(packet) = socket.read_raw_packet().await {
         debug!("Received {:?} packet for main", packet.0);
@@ -138,8 +130,10 @@ async fn main_receive_loop(
             PacketType::LoginOk => logged_in.notify_waiters(),
             PacketType::BuddyAdd => {
                 let b = BuddyStatusPacket::load(&packet.1).unwrap();
+                let num = b.send_tag.parse().unwrap_or_default();
                 debug!("Main: Buddy {} is online: {}", b.character_id, b.online);
                 pending_buddies.remove(&b.character_id);
+                pending_buddies.retain(|_, v| *v > num || num - *v > 1_000_000);
                 buddies.insert(b.character_id);
             }
             PacketType::BuddyRemove => {
@@ -162,7 +156,7 @@ async fn worker_receive_loop(
     mut socket: AOSocket,
     packet_sender: SocketSendHandle,
     buddies: Arc<DashSet<u32>>,
-    pending_buddies: Arc<DashMap<u32, Instant>>,
+    pending_buddies: Arc<DashMap<u32, u32>>,
 ) -> Result<()> {
     let account = config.accounts[id - 1].clone();
     let identifier = format!(r#"{{"id": {}, "name": {:?}}}"#, id, account.character);
@@ -182,7 +176,7 @@ async fn worker_receive_loop(
                 error!("{} failed to log in", account.character);
                 break;
             }
-            PacketType::ClientName | PacketType::MsgSystem => {
+            PacketType::ClientName | PacketType::MsgSystem | PacketType::ClientLookup => {
                 debug!(
                     "Sending {:?} packet from worker #{} to main",
                     packet_type, id
@@ -217,9 +211,11 @@ async fn worker_receive_loop(
                     id, b.character_id, b.online
                 );
                 debug!("Sending BuddyAdd packet from worker #{} to main", id);
+                let num = b.send_tag.parse().unwrap_or_default();
                 b.send_tag = identifier.clone();
                 buddies.insert(b.character_id);
                 pending_buddies.remove(&b.character_id);
+                pending_buddies.retain(|_, v| *v > num || num - *v > 1_000_000);
                 packet_sender.send(b).await?;
             }
             PacketType::BuddyRemove => {

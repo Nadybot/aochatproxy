@@ -121,6 +121,7 @@ async fn main() -> Result<()> {
                 }
             };
             let mut current_buddy = start_at;
+            let mut current_lookup = 0;
             while let Ok(packet) = sock.read_raw_packet().await {
                 debug!("Received {:?} packet from main", packet.0);
                 trace!("Packet body: {:?}", packet.1);
@@ -269,6 +270,13 @@ async fn main() -> Result<()> {
                             },
                             Err(_) => workers[0].send_packet(packet).await,
                         };
+                    }
+                    PacketType::ClientLookup => {
+                        let _ = workers[current_lookup].send_packet(packet).await;
+                        current_lookup += 1;
+                        if current_lookup > account_num {
+                            current_lookup = 0;
+                        }
                     }
                     _ => {
                         let _ = workers[0].send_packet(packet).await;
