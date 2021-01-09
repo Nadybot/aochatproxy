@@ -59,10 +59,18 @@ aochatproxy currently returns this (in another `Ping` packet, with different val
 ```json
 {
   "name": "aochatproxy",
-  "version": "3.1.0",
+  "version": "3.2.0",
+  "type": "capabilities",
+  "supported-cmds": [
+    "capabilities",
+    "ping"
+  ],
   "rate-limited": true,
   "default-mode": "round-robin",
-  "workers": ["charname1", "charname2"],
+  "workers": [
+    "charname1",
+    "charname2"
+  ],
   "started-at": 57915719575,
   "send-modes": [
     "round-robin",
@@ -71,7 +79,9 @@ aochatproxy currently returns this (in another `Ping` packet, with different val
     "proxy-default",
     "by-worker"
   ],
-  "buddy-modes": ["by-worker"]
+  "buddy-modes": [
+    "by-worker"
+  ]
 }
 ```
 
