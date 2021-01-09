@@ -40,6 +40,7 @@ pub struct Config {
 }
 
 // Serde needs functions for defaults
+#[allow(clippy::unnecessary_wraps)]
 fn default_log() -> Option<String> {
     Some(String::from("info"))
 }

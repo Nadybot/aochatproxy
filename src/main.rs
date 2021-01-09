@@ -1,3 +1,4 @@
+#![deny(clippy::all)]
 use communication::SendMode;
 use log::{debug, error, info, trace, warn};
 use nadylib::{
@@ -217,21 +218,21 @@ async fn main() -> Result<()> {
                                     } else {
                                         (charid) % account_num + 1
                                     }
-                                } else if send_mode == communication::SendMode::ByMsgId
-                                    && msgid.is_some()
+                                } else if let (Some(m), communication::SendMode::ByMsgId) =
+                                    (msgid, send_mode)
                                 {
                                     if send_tells_over_main {
-                                        msgid.unwrap() % (account_num + 1)
+                                        m % (account_num + 1)
                                     } else {
-                                        msgid.unwrap() % account_num + 1
+                                        m % account_num + 1
                                     }
-                                } else if send_mode == communication::SendMode::ByWorker
-                                    && worker.is_some()
+                                } else if let (Some(w), communication::SendMode::ByWorker) =
+                                    (worker, send_mode)
                                 {
                                     if send_tells_over_main {
-                                        worker.unwrap() % (account_num + 1)
+                                        w % (account_num + 1)
                                     } else {
-                                        (worker.unwrap() - 1) % (account_num) + 1
+                                        (w - 1) % (account_num) + 1
                                     }
                                 } else if send_mode == communication::SendMode::RoundRobin {
                                     current_buddy += 1;
