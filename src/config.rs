@@ -130,7 +130,7 @@ pub fn load_from_env() -> Result<Config, ConfigError> {
         .parse()
         .map_err(|_| ConfigError::NotNumber(String::from("PROXY_PORT_NUMBER")))?;
     let spam_bot_support: bool = var("SPAM_BOT_SUPPORT")
-        .unwrap_or_else(|_| String::from("false"))
+        .unwrap_or_else(|_| String::from("true"))
         .parse()
         .map_err(|_| ConfigError::NotBoolean(String::from("SPAM_BOT_SUPPORT")))?;
     let send_tells_over_main: bool = var("SEND_TELLS_OVER_MAIN")
@@ -158,17 +158,7 @@ pub fn load_from_env() -> Result<Config, ConfigError> {
                 )))
             }
         },
-        Err(_) => {
-            let relay_by_id: bool = var("RELAY_BY_ID")
-                .unwrap_or_else(|_| String::from("false"))
-                .parse()
-                .map_err(|_| ConfigError::NotBoolean(String::from("RELAY_BY_ID")))?;
-            if relay_by_id {
-                SendMode::ByCharId
-            } else {
-                SendMode::RoundRobin
-            }
-        }
+        Err(_) => SendMode::RoundRobin,
     };
 
     // We cannot send tells in this case
