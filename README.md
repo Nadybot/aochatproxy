@@ -8,7 +8,7 @@ It allows to have more than 1000 buddies by distributing them among workers and 
 
 Put the following in a file called `config.json`:
 
-```json
+```javascript
 {
   // Log level, leave at info unless you want to see packets
   "rust_log": "info",
