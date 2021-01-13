@@ -34,7 +34,6 @@ mod worker;
 #[tokio::main]
 async fn main() -> Result<()> {
     let conf = config::try_load();
-    env_logger::builder().format_timestamp_millis().init();
     let config = conf.unwrap_or_else(|e| {
         error!("Configuration Error: {}", e);
         exit(1)

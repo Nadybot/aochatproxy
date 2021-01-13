@@ -6,42 +6,48 @@ It allows to have more than 1000 buddies by distributing them among workers and 
 
 ## Configuration
 
-Put the following in a file called `.env`:
+Put the following in a file called `config.json`:
 
-```ini
-RUST_LOG=info
-PROXY_PORT_NUMBER=9993
-SERVER_ADDRESS=chat.d1.funcom.com:7105
-SPAM_BOT_SUPPORT=true
-SEND_TELLS_OVER_MAIN=false
-RELAY_WORKER_TELLS=false
-RELAY_BY_ID=false
-
-WORKER1_USERNAME=myworker
-WORKER1_PASSWORD=mypass
-WORKER1_CHARACTERNAME=mychar
-
-WORKER2_USERNAME=myworker2
-WORKER2_PASSWORD=mypass2
-WORKER2_CHARACTERNAME=mychar2
+```json
+{
+  // Log level, leave at info unless you want to see packets
+  "rust_log": "info",
+  // Port the proxy will listen on
+  "port_number": 9993,
+  // Remote chat server to connect to, this is RK5
+  "server_address": "chat.d1.funcom.com:7105",
+  // Whether to support sending messages over workers
+  "spam_bot_support": true,
+  // If so, whether to send them over the main as well
+  "send_tells_over_main": false,
+  // Redirect messages from workers to main
+  "relay_worker_tells": true,
+  // Algorithm to use for message distribution (round-robin or by-charid)
+  "default_mode": "round-robin",
+  // List of worker accounts (NOT the main) with credentials
+  "accounts": [
+    {
+      "username": "myaccount1",
+      "password": "mypass1",
+      "character": "mychar1"
+    },
+    {
+      "username": "myaccount2",
+      "password": "mypass2",
+      "character": "mychar2"
+    }
+  ]
+}
 ```
-
-- `RUST_LOG` configures the logging verbosity. Leave this at `info` for normal use or `debug`/`trace` if you need to see packets
-- `PROXY_PORT_NUMBER` sets the port where the client will be able to connect on
-- `SERVER_ADDRESS` sets the chat server that it will connect to
-- `SPAM_BOT_SUPPORT` toggles support for distributing messages sent via `spam` over workers
-- `SEND_TELLS_OVER_MAIN` will define whether distributing these messages will also use the main client
-- `RELAY_WORKER_TELLS` toggles relaying tells to the workers to the main
-- `RELAY_BY_ID` will change the method for choosing a worker for spam messages from round-robin to character IDs
 
 With `SPAM_BOT_SUPPORT` enabled, at least one worker is required unless `SEND_TELLS_OVER_MAIN` is also enabled.
 
 ## Running
 
-Via Docker/Podman:
+If you want to use containers, take a look at the `.env.example` file to get a brief of the enviroment variables used for configuration and create such file, then run it:
 
 ```bash
-docker run --rm -it --env-file .env quay.io/nadyita/aochatproxy:rust-rewrite
+docker run --rm -it --env-file .env quay.io/nadyita/aochatproxy:stable
 ```
 
 Release binaries:
@@ -59,11 +65,13 @@ aochatproxy currently returns this (in another `Ping` packet, with different val
 ```json
 {
   "name": "aochatproxy",
-  "version": "3.1.0",
+  "version": "4.0.0-pre",
+  "type": "capabilities",
+  "supported-cmds": ["capabilities", "ping"],
   "rate-limited": true,
   "default-mode": "round-robin",
   "workers": ["charname1", "charname2"],
-  "started-at": 57915719575,
+  "started-at": 5791571957557915,
   "send-modes": [
     "round-robin",
     "by-charid",

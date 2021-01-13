@@ -1,11 +1,8 @@
 use crate::communication::SendMode;
 
-use dotenv::dotenv;
+use deser_hjson::from_str;
+use log::warn;
 use serde::Deserialize;
-#[cfg(not(feature = "simd-json"))]
-use serde_json::from_str;
-#[cfg(feature = "simd-json")]
-use simd_json::from_str;
 use std::{
     env::{args, set_var, var},
     fmt::{Display, Formatter, Result as FmtResult},
@@ -23,9 +20,10 @@ pub struct AccountData {
 #[derive(Clone, Deserialize, Debug)]
 pub struct Config {
     #[serde(default = "default_log")]
-    pub rust_log: Option<String>,
+    pub rust_log: String,
     #[serde(default = "default_port")]
     pub port_number: u32,
+    #[serde(default)]
     pub accounts: Vec<AccountData>,
     #[serde(default = "default_server_address")]
     pub server_address: String,
@@ -40,9 +38,8 @@ pub struct Config {
 }
 
 // Serde needs functions for defaults
-#[allow(clippy::unnecessary_wraps)]
-fn default_log() -> Option<String> {
-    Some(String::from("info"))
+fn default_log() -> String {
+    String::from("info")
 }
 fn default_port() -> u32 {
     9993
@@ -51,10 +48,10 @@ fn default_server_address() -> String {
     String::from("chat.d1.funcom.com:7105")
 }
 fn default_spam() -> bool {
-    false
+    true
 }
 fn default_main() -> bool {
-    false
+    true
 }
 fn default_relay() -> bool {
     false
@@ -64,8 +61,6 @@ fn default_mode() -> SendMode {
 }
 
 pub enum ConfigError {
-    NotNumber(String),
-    NotBoolean(String),
     InvalidConfig(String),
     NotFound(String),
 }
@@ -73,12 +68,6 @@ pub enum ConfigError {
 impl Display for ConfigError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            Self::NotNumber(s) => {
-                write!(f, "{} is not a valid number", s)
-            }
-            Self::NotBoolean(b) => {
-                write!(f, "{} must be true or false", b)
-            }
             Self::InvalidConfig(s) => {
                 write!(f, "{}", s)
             }
@@ -89,104 +78,103 @@ impl Display for ConfigError {
     }
 }
 
-pub fn load_from_env() -> Result<Config, ConfigError> {
-    dotenv().ok();
-    let mut next_number = 1;
-    let mut account_data: Vec<AccountData> = Vec::new();
+impl Config {
+    pub fn mash_with_env(&mut self) -> Result<u8, ConfigError> {
+        let mut changed = 0;
+        let mut next_number = 1;
 
-    loop {
-        let mut username = var(format!("WORKER{}_USERNAME", next_number));
-        let mut password = var(format!("WORKER{}_PASSWORD", next_number));
-        let character = var(format!("WORKER{}_CHARACTERNAME", next_number));
+        loop {
+            let mut username = var(format!("WORKER{}_USERNAME", next_number));
+            let mut password = var(format!("WORKER{}_PASSWORD", next_number));
+            let character = var(format!("WORKER{}_CHARACTERNAME", next_number));
 
-        if character.is_err() {
-            break;
-        }
-        if username.is_err() {
-            if account_data.is_empty() {
+            if character.is_err() {
                 break;
             }
-            username = Ok(account_data.last().unwrap().username.clone());
-        }
-        if password.is_err() {
-            if account_data.is_empty() {
-                break;
+            if username.is_err() {
+                if self.accounts.is_empty() {
+                    break;
+                }
+                username = Ok(self.accounts.last().unwrap().username.clone());
             }
-            password = Ok(account_data.last().unwrap().password.clone())
+            if password.is_err() {
+                if self.accounts.is_empty() {
+                    break;
+                }
+                password = Ok(self.accounts.last().unwrap().password.clone())
+            }
+            let account = AccountData {
+                username: username.unwrap(),
+                password: password.unwrap(),
+                character: character.unwrap(),
+            };
+            self.accounts.push(account);
+            next_number += 1;
+            changed += 1;
         }
-        let account = AccountData {
-            username: username.unwrap(),
-            password: password.unwrap(),
-            character: character.unwrap(),
-        };
-        account_data.push(account);
-        next_number += 1;
+
+        if let Ok(addr) = var("SERVER_ADDRESS") {
+            self.server_address = addr;
+            changed += 1;
+        }
+        if let Ok(port) = var("PROXY_PORT_NUMBER") {
+            if let Ok(p) = port.parse() {
+                self.port_number = p;
+                changed += 1;
+            }
+        }
+        if let Ok(spam_bot_support) = var("SPAM_BOT_SUPPORT") {
+            if let Ok(s) = spam_bot_support.parse() {
+                self.spam_bot_support = s;
+                changed += 1;
+            }
+        }
+        if let Ok(send_tells_over_main) = var("SEND_TELLS_OVER_MAIN") {
+            if let Ok(s) = send_tells_over_main.parse() {
+                self.send_tells_over_main = s;
+                changed += 1;
+            }
+        }
+        if let Ok(relay_worker_tells) = var("RELAY_WORKER_TELLS") {
+            if let Ok(r) = relay_worker_tells.parse() {
+                self.relay_worker_tells = r;
+                changed += 1;
+            }
+        }
+        if let Ok(default_mode) = var("DEFAULT_MODE") {
+            changed += 1;
+            match default_mode.as_str() {
+                "round-robin" => self.default_mode = SendMode::RoundRobin,
+                "by-charid" => self.default_mode = SendMode::ByCharId,
+                _ => {}
+            }
+        }
+        if let Ok(level) = var("RUST_LOG") {
+            self.rust_log = level;
+            changed += 1;
+        }
+
+        Ok(changed)
     }
 
-    let server_address =
-        var("SERVER_ADDRESS").unwrap_or_else(|_| String::from("chat.d1.funcom.com:7105"));
-    let port_number: u32 = var("PROXY_PORT_NUMBER")
-        .unwrap_or_else(|_| String::from("9993"))
-        .parse()
-        .map_err(|_| ConfigError::NotNumber(String::from("PROXY_PORT_NUMBER")))?;
-    let spam_bot_support: bool = var("SPAM_BOT_SUPPORT")
-        .unwrap_or_else(|_| String::from("true"))
-        .parse()
-        .map_err(|_| ConfigError::NotBoolean(String::from("SPAM_BOT_SUPPORT")))?;
-    let send_tells_over_main: bool = var("SEND_TELLS_OVER_MAIN")
-        .unwrap_or_else(|_| {
-            if account_data.is_empty() {
-                String::from("true")
-            } else {
-                String::from("false")
-            }
-        })
-        .parse()
-        .map_err(|_| ConfigError::NotBoolean(String::from("SEND_TELLS_OVER_MAIN")))?;
-    let relay_worker_tells: bool = var("RELAY_WORKER_TELLS")
-        .unwrap_or_else(|_| String::from("false"))
-        .parse()
-        .map_err(|_| ConfigError::NotBoolean(String::from("RELAY_WORKER_TELLS")))?;
+    fn validate_self(&self) -> Result<(), ConfigError> {
+        set_var("RUST_LOG", &self.rust_log);
+        env_logger::builder().format_timestamp_millis().init();
 
-    let default_mode = match var("DEFAULT_MODE") {
-        Ok(v) => match v.as_str() {
-            "round-robin" => SendMode::RoundRobin,
-            "by-charid" => SendMode::ByCharId,
-            _ => {
-                return Err(ConfigError::InvalidConfig(String::from(
-                    "DEFAULT_MODE must be round-robin or by-charid",
-                )))
-            }
-        },
-        Err(_) => SendMode::RoundRobin,
-    };
-
-    // We cannot send tells in this case
-    if spam_bot_support & (!send_tells_over_main && account_data.is_empty()) {
-        return Err(ConfigError::InvalidConfig(String::from(
-            "When SPAM_BOT_SUPPORT is true and SEND_TELLS_OVER_MAIN is disabled, at least one worker needs to be configured",
-        )));
+        if self.spam_bot_support && (!self.send_tells_over_main && self.accounts.is_empty()) {
+            return Err(ConfigError::InvalidConfig(String::from(
+                "When SPAM_BOT_SUPPORT is true and SEND_TELLS_OVER_MAIN is disabled, at least one worker needs to be configured",
+            )));
+        }
+        Ok(())
     }
-
-    Ok(Config {
-        rust_log: None,
-        port_number,
-        accounts: account_data,
-        server_address,
-        spam_bot_support,
-        send_tells_over_main,
-        relay_worker_tells,
-        default_mode,
-    })
 }
 
 pub fn load_from_file(path: String) -> Result<Config, ConfigError> {
-    let mut content = read_to_string(&path).map_err(|_| ConfigError::NotFound(path))?;
+    let content = read_to_string(&path).map_err(|_| ConfigError::NotFound(path))?;
     let config: Config =
-        from_str(&mut content).map_err(|e| ConfigError::InvalidConfig(e.to_string()))?;
-    if let Some(level) = &config.rust_log {
-        set_var("RUST_LOG", level);
-    }
+        from_str(&content).map_err(|e| ConfigError::InvalidConfig(e.to_string()))?;
+    set_var("RUST_LOG", &config.rust_log);
 
     match config.default_mode {
         SendMode::ByCharId | SendMode::RoundRobin => {}
@@ -209,8 +197,23 @@ pub fn load_from_file(path: String) -> Result<Config, ConfigError> {
 
 pub fn try_load() -> Result<Config, ConfigError> {
     let file = args().nth(1).unwrap_or_else(|| String::from("config.json"));
-    if Path::new(&file).exists() {
-        return load_from_file(file);
+    let mut used_config = false;
+    let mut conf: Config = {
+        if Path::new(&file).exists() {
+            let conf = load_from_file(file)?;
+            used_config = true;
+            conf
+        } else {
+            from_str("{}").unwrap()
+        }
+    };
+    let changed_from_env = conf.mash_with_env()?;
+
+    conf.validate_self()?;
+
+    if !used_config && changed_from_env == 0 {
+        warn!("config.json not found, proceeding with defaults");
     }
-    load_from_env()
+
+    Ok(conf)
 }
