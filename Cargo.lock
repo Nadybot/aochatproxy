@@ -166,9 +166,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd25036021b0de88a0aff6b850051563c6516d0bf53f8638938edbb9de732736"
 
 [[package]]
-name = "leaky-bucket"
-version = "0.10.0"
-source = "git+https://github.com/Gelbpunkt/leaky-bucket.git?branch=main#9dac411aef789897a78a3a0a8764a5bdeaeec18a"
+name = "leaky-bucket-lite"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8198671416dd320fbd9866421f6303fde5e69c8e598015641b4ece752693114e"
 dependencies = [
  "tokio",
 ]
@@ -220,10 +221,10 @@ dependencies = [
 [[package]]
 name = "nadylib"
 version = "0.1.0"
-source = "git+https://github.com/Nadybot/nadylib?branch=unstable#92ef269aa6fa25566458b903da90e5ec992a726f"
+source = "git+https://github.com/Nadybot/nadylib?branch=unstable#0a8a48e2cadb2a2b6340302845f59ac8b26676db"
 dependencies = [
  "byteorder",
- "leaky-bucket",
+ "leaky-bucket-lite",
  "log",
  "num-bigint",
  "num-traits",

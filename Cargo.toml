@@ -18,9 +18,6 @@ simd-json = { version = "0.3", default-features = false, features = ["serde_impl
 tokio = { version = "1.0", default-features = false, features = ["macros", "rt-multi-thread"] }
 
 [patch.crates-io]
-# leaky-bucket uses futures-util by default
-# this fork uses unicycle
-leaky-bucket = { git = "https://github.com/Gelbpunkt/leaky-bucket.git", branch = "main" }
 # num-bigint is on rand 0.7, see https://github.com/rust-num/num-bigint/pull/185
 num-bigint = { git = "https://github.com/Gelbpunkt/num-bigint.git", branch = "rand-0.8", features = [
     "rand"
