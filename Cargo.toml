@@ -17,12 +17,6 @@ serde_json = { version = "1.0", optional = true }
 simd-json = { version = "0.3", default-features = false, features = ["serde_impl"], optional = true }
 tokio = { version = "1.0", default-features = false, features = ["macros", "rt-multi-thread"] }
 
-[patch.crates-io]
-# num-bigint is on rand 0.7, see https://github.com/rust-num/num-bigint/pull/185
-num-bigint = { git = "https://github.com/Gelbpunkt/num-bigint.git", branch = "rand-0.8", features = [
-    "rand"
-] }
-
 [features]
 default = ["serde-json"]
 serde-json = ["serde_json"]
