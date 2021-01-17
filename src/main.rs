@@ -1,12 +1,12 @@
 #![deny(clippy::all)]
-use communication::SendMode;
+use dashmap::DashSet;
 use log::{debug, error, info, trace, warn};
 use nadylib::{
     client_socket::SocketSendHandle,
     models::Channel,
     packets::{
-        BuddyAddPacket, BuddyRemovePacket, IncomingPacket, MsgPrivatePacket, OutgoingPacket,
-        PacketType, PingPacket,
+        BuddyAddPacket, BuddyRemovePacket, IncomingPacket, LoginSelectPacket, MsgPrivatePacket,
+        OutgoingPacket, PacketType, PingPacket,
     },
     AOSocket, Result, SocketConfig,
 };
@@ -45,6 +45,7 @@ async fn main() -> Result<()> {
     let spam_bot_support = config.spam_bot_support;
     let send_tells_over_main = config.send_tells_over_main;
     let account_num = config.accounts.len();
+    let worker_ids: Arc<DashSet<u32>> = Arc::new(DashSet::new());
     let worker_names: Vec<String> = config
         .accounts
         .iter()
@@ -77,8 +78,14 @@ async fn main() -> Result<()> {
             info!("Spawning worker for {}", acc.character);
             let handle = SocketSendHandle::new(worker_sender.clone(), None);
 
-            let worker =
-                WorkerHandle::new(idx + 1, config.clone(), handle, logged_in.clone()).await;
+            let worker = WorkerHandle::new(
+                idx + 1,
+                config.clone(),
+                handle,
+                logged_in.clone(),
+                worker_ids.clone(),
+            )
+            .await;
             workers.push(worker);
         }
 
@@ -94,8 +101,14 @@ async fn main() -> Result<()> {
             SocketConfig::default().keepalive(false).limit_tells(false),
         );
 
-        let main_worker =
-            WorkerHandle::new(0, config.clone(), sock.get_sender(), logged_in.clone()).await;
+        let main_worker = WorkerHandle::new(
+            0,
+            config.clone(),
+            sock.get_sender(),
+            logged_in.clone(),
+            worker_ids.clone(),
+        )
+        .await;
         workers.insert(0, main_worker);
 
         let sock_to_workers = sock.get_sender();
@@ -108,6 +121,8 @@ async fn main() -> Result<()> {
                 let _ = sock_to_workers.send_raw(msg.0, msg.1).await;
             }
         });
+
+        let worker_id_clone = worker_ids.clone();
 
         // Loop over incoming packets and depending on the type, round robin them
         // If not, we just send them over the normal FC connection
@@ -127,6 +142,14 @@ async fn main() -> Result<()> {
                 trace!("Packet body: {:?}", packet.1);
 
                 match packet.0 {
+                    PacketType::LoginSelect => {
+                        let pack = LoginSelectPacket::load(&packet.1).unwrap();
+                        if worker_id_clone.contains(&pack.character_id) {
+                            error!("Main attempted to log in as an existing worker. Remove the worker from the config and restart.");
+                            break;
+                        }
+                        workers[0].send_packet(packet).await;
+                    }
                     PacketType::BuddyAdd => {
                         let mut pack = BuddyAddPacket::load(&packet.1).unwrap();
 
@@ -196,7 +219,7 @@ async fn main() -> Result<()> {
                             if let Ok(payload) = from_str::<communication::SendMessagePayload>(
                                 &mut m.message.send_tag,
                             ) {
-                                if payload.mode != SendMode::Default {
+                                if payload.mode != communication::SendMode::Default {
                                     send_mode = payload.mode;
                                 }
                                 msgid = payload.msgid;
@@ -272,14 +295,14 @@ async fn main() -> Result<()> {
                         };
                     }
                     PacketType::ClientLookup => {
-                        let _ = workers[current_lookup].send_packet(packet).await;
+                        workers[current_lookup].send_packet(packet).await;
                         current_lookup += 1;
                         if current_lookup > account_num {
                             current_lookup = 0;
                         }
                     }
                     _ => {
-                        let _ = workers[0].send_packet(packet).await;
+                        workers[0].send_packet(packet).await;
                     }
                 }
             }

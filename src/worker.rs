@@ -47,6 +47,7 @@ impl Worker {
         receiver: mpsc::Receiver<WorkerMessage>,
         packet_sender: SocketSendHandle,
         logged_in: Arc<Notify>,
+        worker_ids: Arc<DashSet<u32>>,
     ) -> Self {
         let conf = SocketConfig::default().keepalive(id != 0);
 
@@ -75,6 +76,7 @@ impl Worker {
                 packet_sender.clone(),
                 buddies.clone(),
                 pending_buddies.clone(),
+                worker_ids.clone(),
             ));
         }
 
@@ -157,6 +159,7 @@ async fn worker_receive_loop(
     packet_sender: SocketSendHandle,
     buddies: Arc<DashSet<u32>>,
     pending_buddies: Arc<DashMap<u32, u32>>,
+    worker_ids: Arc<DashSet<u32>>,
 ) -> Result<()> {
     let account = config.accounts[id - 1].clone();
     let identifier = format!(r#"{{"id": {}, "name": {:?}}}"#, id, account.character);
@@ -195,6 +198,7 @@ async fn worker_receive_loop(
                     let pack = LoginSelectPacket {
                         character_id: character.id,
                     };
+                    worker_ids.insert(character.id);
                     socket.send(pack).await?;
                 } else {
                     error!(
@@ -274,9 +278,10 @@ impl WorkerHandle {
         config: Config,
         packet_sender: SocketSendHandle,
         logged_in: Arc<Notify>,
+        worker_ids: Arc<DashSet<u32>>,
     ) -> Self {
         let (sender, receiver) = mpsc::channel(1000);
-        let worker = Worker::new(id, config, receiver, packet_sender, logged_in).await;
+        let worker = Worker::new(id, config, receiver, packet_sender, logged_in, worker_ids).await;
         spawn(run_worker(worker));
 
         Self { id, sender }
