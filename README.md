@@ -65,7 +65,7 @@ aochatproxy currently returns this (in another `Ping` packet, with different val
 ```json
 {
   "name": "aochatproxy",
-  "version": "4.0.0-pre",
+  "version": "4.0.0",
   "type": "capabilities",
   "supported-cmds": ["capabilities", "ping"],
   "rate-limited": true,
