@@ -68,12 +68,8 @@ pub enum ConfigError {
 impl Display for ConfigError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            Self::InvalidConfig(s) => {
-                write!(f, "{}", s)
-            }
-            Self::NotFound(s) => {
-                write!(f, "file {} not found or access denied", s)
-            }
+            Self::InvalidConfig(s) => f.write_str(s),
+            Self::NotFound(s) => f.write_fmt(format_args!("file {} not found or access denied", s)),
         }
     }
 }
