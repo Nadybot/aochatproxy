@@ -157,6 +157,15 @@ impl Config {
         set_var("RUST_LOG", &self.rust_log);
         env_logger::builder().format_timestamp_millis().init();
 
+        match self.default_mode {
+            SendMode::ByCharId | SendMode::RoundRobin => {}
+            _ => {
+                return Err(ConfigError::InvalidConfig(String::from(
+                    "default_mode must be round-robin or by-charid",
+                )))
+            }
+        };
+
         if self.spam_bot_support && (!self.send_tells_over_main && self.accounts.is_empty()) {
             return Err(ConfigError::InvalidConfig(String::from(
                 "When SPAM_BOT_SUPPORT is true and SEND_TELLS_OVER_MAIN is disabled, at least one worker needs to be configured",
@@ -170,24 +179,6 @@ pub fn load_from_file(path: String) -> Result<Config, ConfigError> {
     let content = read_to_string(&path).map_err(|_| ConfigError::NotFound(path))?;
     let config: Config =
         from_str(&content).map_err(|e| ConfigError::InvalidConfig(e.to_string()))?;
-    set_var("RUST_LOG", &config.rust_log);
-
-    match config.default_mode {
-        SendMode::ByCharId | SendMode::RoundRobin => {}
-        _ => {
-            return Err(ConfigError::InvalidConfig(String::from(
-                "default_mode must be round-robin or by-charid",
-            )))
-        }
-    };
-
-    // We cannot send tells in this case
-    if config.spam_bot_support & (!config.send_tells_over_main && config.accounts.is_empty()) {
-        return Err(ConfigError::InvalidConfig(String::from(
-            "When spam_bot_support is true and send_tells_over_main is disabled, at least one worker needs to be configured",
-        )));
-    }
-
     Ok(config)
 }
 

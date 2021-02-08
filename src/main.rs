@@ -35,6 +35,7 @@ mod worker;
 async fn main() -> Result<()> {
     let conf = config::try_load();
     let config = conf.unwrap_or_else(|e| {
+        let _ = env_logger::builder().format_timestamp_millis().try_init();
         error!("Configuration Error: {}", e);
         exit(1)
     });
