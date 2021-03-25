@@ -56,7 +56,11 @@ async fn main() -> Result<()> {
     let default_mode = config.default_mode;
 
     let identifier = format!(
-        r#"{{"name": "aochatproxy", "version": "4.0.0", "type": "capabilities", "supported-cmds": ["capabilities", "ping"], "rate-limited": true, "default-mode": {}, "workers": {:?}, "started-at": {}, "send-modes": ["round-robin", "by-charid", "by-msgid", "proxy-default", "by-worker"], "buddy-modes": ["by-worker"]}}"#,
+        concat!(
+            r#"{{"name": "aochatproxy", "version": ""#,
+            env!("CARGO_PKG_VERSION"),
+            r#"", "type": "capabilities", "supported-cmds": ["capabilities", "ping"], "rate-limited": true, "default-mode": {}, "workers": {:?}, "started-at": {}, "send-modes": ["round-robin", "by-charid", "by-msgid", "proxy-default", "by-worker"], "buddy-modes": ["by-worker"]}}"#
+        ),
         to_string(&default_mode).unwrap(),
         worker_names,
         started_at_unix
