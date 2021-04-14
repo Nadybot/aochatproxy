@@ -161,9 +161,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.91"
+version = "0.2.93"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8916b1f6ca17130ec6568feccee27c156ad12037880833a3b842a823236502e7"
+checksum = "9385f66bf6105b241aa65a61cb923ef20efc665cb9f9bb50ac2f0c4b7f378d41"
 
 [[package]]
 name = "log"
@@ -205,7 +205,7 @@ dependencies = [
 [[package]]
 name = "nadylib"
 version = "0.1.0"
-source = "git+https://github.com/Nadybot/nadylib?branch=unstable#017434f5333a00194f961d685e075e9cdb968d3e"
+source = "git+https://github.com/Nadybot/nadylib?branch=unstable#1a2003a63a193986a90de799c74583945915d33f"
 dependencies = [
  "byteorder",
  "getrandom",
@@ -273,9 +273,9 @@ checksum = "dc0e1f259c92177c30a4c9d177246edd0a3568b25756a977d0632cf8fa37e905"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.24"
+version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e0704ee1a7e00d7bb417d0770ea303c1bccbabf0ef1667dae92b5967f5f8a71"
+checksum = "a152013215dca273577e18d2bf00fa862b89b24169fb78c4c95aeb07992c9cec"
 dependencies = [
  "unicode-xid",
 ]
@@ -328,9 +328,9 @@ dependencies = [
 
 [[package]]
 name = "simd-json"
-version = "0.3.26"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "469eceee006182897e6a2f4add05ebc82cc0531735c86535f4614df24afb39bc"
+checksum = "635678c30cb728c83105ee02f9d9556213815c6c5aa01091523de2d203928e86"
 dependencies = [
  "halfbrown",
  "serde",
@@ -340,9 +340,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "1.0.67"
+version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6498a9efc342871f91cc2d0d694c674368b4ceb40f62b65a7a08c3792935e702"
+checksum = "48fe99c6bd8b1cc636890bcc071842de909d902c81ac7dab53ba33c421ab8ffb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -360,9 +360,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.4.0"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "134af885d758d645f0f0505c9a8b3f9bf8a348fd822e112ab5248138348f1722"
+checksum = "83f0c8e7c0addab50b663055baf787d0af7f413a46e6e7fb9559a4e4db7137a5"
 dependencies = [
  "autocfg",
  "bytes",
@@ -393,9 +393,9 @@ checksum = "f7fe0bb3479651439c9112f72b6c505038574c9fbb575ed1bf3b797fa39dd564"
 
 [[package]]
 name = "value-trait"
-version = "0.1.23"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fd13485b764afe742226ad5a4906e9f7c1ae0029895473fa52855882661e06c"
+checksum = "6034fb7710bdb0f90669eb6b1ba37a15186872d61926dcf447f92c440a034f9b"
 dependencies = [
  "float-cmp",
  "halfbrown",
