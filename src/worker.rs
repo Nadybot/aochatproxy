@@ -4,6 +4,7 @@ use dashmap::{DashMap, DashSet};
 use log::{debug, error, info, trace};
 use nadylib::{
     client_socket::SocketSendHandle,
+    models::Character,
     packets::{
         BuddyAddPacket, BuddyRemovePacket, BuddyStatusPacket, IncomingPacket, LoginCharlistPacket,
         LoginSeedPacket, LoginSelectPacket, MsgPrivatePacket, OutgoingPacket, PacketType,
@@ -13,7 +14,7 @@ use nadylib::{
 };
 use tokio::{
     spawn,
-    sync::{mpsc, oneshot, Notify},
+    sync::{mpsc, oneshot},
 };
 
 use std::{fmt, sync::Arc};
@@ -46,7 +47,7 @@ impl Worker {
         config: Config,
         receiver: mpsc::Receiver<WorkerMessage>,
         packet_sender: SocketSendHandle,
-        logged_in: Arc<Notify>,
+        character_tx: Option<oneshot::Sender<Vec<Character>>>,
         worker_ids: Arc<DashSet<u32>>,
     ) -> Self {
         let conf = SocketConfig::default().keepalive(id != 0);
@@ -63,7 +64,7 @@ impl Worker {
         if id == 0 {
             spawn(main_receive_loop(
                 socket,
-                logged_in,
+                character_tx,
                 packet_sender.clone(),
                 buddies.clone(),
                 pending_buddies.clone(),
@@ -119,17 +120,25 @@ impl Worker {
 
 async fn main_receive_loop(
     mut socket: AOSocket,
-    logged_in: Arc<Notify>,
+    mut character_tx: Option<oneshot::Sender<Vec<Character>>>,
     packet_sender: SocketSendHandle,
     buddies: Arc<DashSet<u32>>,
     pending_buddies: Arc<DashMap<u32, u32>>,
 ) -> Result<()> {
+    let mut characters = Vec::new();
+
     while let Ok(packet) = socket.read_raw_packet().await {
         debug!("Received {:?} packet for main", packet.0);
         trace!("Packet body: {:?}", packet.1);
 
         match packet.0 {
-            PacketType::LoginOk => logged_in.notify_waiters(),
+            PacketType::LoginOk => {
+                let _ = character_tx.take().unwrap().send(characters.clone());
+            }
+            PacketType::LoginCharlist => {
+                let c = LoginCharlistPacket::load(&packet.1).unwrap();
+                characters = c.characters;
+            }
             PacketType::BuddyAdd => {
                 let b = BuddyStatusPacket::load(&packet.1).unwrap();
                 let num = b.send_tag.parse().unwrap_or_default();
@@ -277,11 +286,19 @@ impl WorkerHandle {
         id: usize,
         config: Config,
         packet_sender: SocketSendHandle,
-        logged_in: Arc<Notify>,
+        character_tx: Option<oneshot::Sender<Vec<Character>>>,
         worker_ids: Arc<DashSet<u32>>,
     ) -> Self {
         let (sender, receiver) = mpsc::channel(1000);
-        let worker = Worker::new(id, config, receiver, packet_sender, logged_in, worker_ids).await;
+        let worker = Worker::new(
+            id,
+            config,
+            receiver,
+            packet_sender,
+            character_tx,
+            worker_ids,
+        )
+        .await;
         spawn(run_worker(worker));
 
         Self { id, sender }

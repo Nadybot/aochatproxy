@@ -15,6 +15,7 @@ pub struct AccountData {
     pub username: String,
     pub password: String,
     pub character: String,
+    pub bot_name: String,
 }
 
 #[derive(Clone, Deserialize, Debug)]
@@ -83,6 +84,7 @@ impl Config {
             let mut username = var(format!("WORKER{}_USERNAME", next_number));
             let mut password = var(format!("WORKER{}_PASSWORD", next_number));
             let character = var(format!("WORKER{}_CHARACTERNAME", next_number));
+            let mut bot_name = var(format!("WORKER{}_BOTNAME", next_number));
 
             if character.is_err() {
                 break;
@@ -99,10 +101,17 @@ impl Config {
                 }
                 password = Ok(self.accounts.last().unwrap().password.clone())
             }
+            if bot_name.is_err() {
+                if self.accounts.is_empty() {
+                    break;
+                }
+                bot_name = Ok(self.accounts.last().unwrap().bot_name.clone())
+            }
             let account = AccountData {
                 username: username.unwrap(),
                 password: password.unwrap(),
                 character: character.unwrap(),
+                bot_name: bot_name.unwrap(),
             };
             self.accounts.push(account);
             next_number += 1;

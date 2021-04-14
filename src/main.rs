@@ -1,12 +1,12 @@
 #![deny(clippy::all)]
 use dashmap::DashSet;
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, info, trace};
 use nadylib::{
     client_socket::SocketSendHandle,
     models::Channel,
     packets::{
         BuddyAddPacket, BuddyRemovePacket, IncomingPacket, LoginSelectPacket, MsgPrivatePacket,
-        OutgoingPacket, PacketType, PingPacket,
+        OutgoingPacket, PacketType, PingPacket, SerializedPacket,
     },
     AOSocket, Result, SocketConfig,
 };
@@ -14,11 +14,7 @@ use nadylib::{
 use serde_json::{from_str, to_string};
 #[cfg(feature = "simd-json")]
 use simd_json::{from_str, to_string};
-use tokio::{
-    net::TcpListener,
-    select, spawn,
-    sync::{mpsc::unbounded_channel, Notify},
-};
+use tokio::{net::TcpListener, select, spawn, sync::mpsc::unbounded_channel};
 use worker::WorkerHandle;
 
 use std::{
@@ -45,7 +41,6 @@ async fn main() -> Result<()> {
 
     let spam_bot_support = config.spam_bot_support;
     let send_tells_over_main = config.send_tells_over_main;
-    let account_num = config.accounts.len();
     let worker_ids: Arc<DashSet<u32>> = Arc::new(DashSet::new());
     let worker_names: Vec<String> = config
         .accounts
@@ -66,38 +61,10 @@ async fn main() -> Result<()> {
         started_at_unix
     );
 
-    loop {
-        let identifier_clone = identifier.clone();
+    let tcp_server = TcpListener::bind(format!("0.0.0.0:{}", config.port_number)).await?;
+    info!("Listening on port {}", config.port_number);
 
-        let logged_in = Arc::new(Notify::new());
-        let logged_in_waiter = logged_in.clone();
-
-        let (worker_sender, mut worker_receiver) = unbounded_channel();
-        let command_reply = worker_sender.clone();
-
-        // List of workers
-        let mut workers: Vec<worker::WorkerHandle> = Vec::with_capacity(account_num + 1);
-
-        // Create all workers
-        for (idx, acc) in config.accounts.iter().enumerate() {
-            info!("Spawning worker for {}", acc.character);
-            let handle = SocketSendHandle::new(worker_sender.clone(), None);
-
-            let worker = WorkerHandle::new(
-                idx + 1,
-                config.clone(),
-                handle,
-                logged_in.clone(),
-                worker_ids.clone(),
-            )
-            .await;
-            workers.push(worker);
-        }
-
-        let tcp_server = TcpListener::bind(format!("0.0.0.0:{}", config.port_number)).await?;
-        info!("Listening on port {}", config.port_number);
-        info!("Waiting for client to connect...");
-        let (client, addr) = tcp_server.accept().await?;
+    while let Ok((client, addr)) = tcp_server.accept().await {
         info!("Client connected from {}", addr);
 
         // Create a socket from the client
@@ -106,33 +73,76 @@ async fn main() -> Result<()> {
             SocketConfig::default().keepalive(false).limit_tells(false),
         );
 
-        let main_worker = WorkerHandle::new(
-            0,
-            config.clone(),
-            sock.get_sender(),
-            logged_in.clone(),
-            worker_ids.clone(),
-        )
-        .await;
-        workers.insert(0, main_worker);
+        // We need to get the character name it tries to log in on
+        // For that the main worker sends a oneshot channel with it
+        let (charname_tx, charname_rx) = tokio::sync::oneshot::channel();
+        // Channel for the packets from workers
+        let (worker_sender, mut worker_receiver) = unbounded_channel::<SerializedPacket>();
+        let command_reply = worker_sender.clone();
+        let identifier_clone = identifier.clone();
 
         let sock_to_workers = sock.get_sender();
-
         // Forward stuff from the workers to the main
         let worker_read_task = spawn(async move {
-            logged_in_waiter.notified().await;
-            info!("Main logged in, relaying packets now");
             while let Some(msg) = worker_receiver.recv().await {
                 let _ = sock_to_workers.send_raw(msg.0, msg.1).await;
             }
         });
 
-        let worker_id_clone = worker_ids.clone();
+        let main_worker = WorkerHandle::new(
+            0,
+            config.clone(),
+            sock.get_sender(),
+            Some(charname_tx),
+            worker_ids.clone(),
+        )
+        .await;
 
-        // Loop over incoming packets and depending on the type, round robin them
-        // If not, we just send them over the normal FC connection
-        let proxy_task = spawn(async move {
-            // For round robin on private msgs
+        let config = config.clone();
+        let worker_ids = worker_ids.clone();
+        let rest_task = spawn(async move {
+            let mut character_id = 0;
+            // Read the character ID logging in
+            while let Ok(packet) = sock.read_raw_packet().await {
+                if PacketType::LoginSelect == packet.0 {
+                    let l = LoginSelectPacket::load(&packet.1).unwrap();
+                    character_id = l.character_id;
+                    main_worker.send_packet(packet).await;
+                    break;
+                }
+                main_worker.send_packet(packet).await;
+            }
+
+            let characters = charname_rx.await.unwrap();
+            let charname = characters
+                .iter()
+                .find(|c| c.id == character_id)
+                .unwrap()
+                .name
+                .clone();
+            let mut workers = vec![main_worker];
+            let mut account_num = 0;
+
+            for (idx, acc) in config
+                .accounts
+                .iter()
+                .filter(|acc| acc.bot_name == charname)
+                .enumerate()
+            {
+                info!("Spawning worker for {}", acc.character);
+                let handle = SocketSendHandle::new(worker_sender.clone(), None);
+
+                let worker =
+                    WorkerHandle::new(idx + 1, config.clone(), handle, None, worker_ids.clone())
+                        .await;
+                workers.push(worker);
+                account_num += 1;
+            }
+
+            let worker_id_clone = worker_ids.clone();
+
+            // Loop over incoming packets and depending on the type, round robin them
+            // If not, we just send them over the normal FC connection
             let start_at = {
                 if send_tells_over_main {
                     0
@@ -143,14 +153,14 @@ async fn main() -> Result<()> {
             let mut current_buddy = start_at;
             let mut current_lookup = 0;
             while let Ok(packet) = sock.read_raw_packet().await {
-                debug!("Received {:?} packet from main", packet.0);
+                debug!("Received {:?} packet from {}", packet.0, charname);
                 trace!("Packet body: {:?}", packet.1);
 
                 match packet.0 {
                     PacketType::LoginSelect => {
                         let pack = LoginSelectPacket::load(&packet.1).unwrap();
                         if worker_id_clone.contains(&pack.character_id) {
-                            error!("Main attempted to log in as an existing worker. Remove the worker from the config and restart.");
+                            error!("{} attempted to log in as an existing worker. Remove the worker from the config and restart.", charname);
                             break;
                         }
                         workers[0].send_packet(packet).await;
@@ -313,11 +323,13 @@ async fn main() -> Result<()> {
             }
         });
 
-        select! {
-            _ = worker_read_task => {},
-            _ = proxy_task => {},
-        }
-
-        warn!("Lost a connection (probably from client), restarting...");
+        spawn(async move {
+            select! {
+                _ = worker_read_task => {},
+                _ = rest_task => {},
+            }
+        });
     }
+
+    Ok(())
 }
