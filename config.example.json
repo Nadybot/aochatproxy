@@ -1,19 +1,11 @@
 {
-    // Log level, leave at info unless you want to see packets
     "rust_log": "info",
-    // Port the proxy will listen on
     "port_number": 9993,
-    // Remote chat server to connect to, this is RK5
     "server_address": "chat.d1.funcom.com:7105",
-    // Whether to support sending messages over workers
     "spam_bot_support": true,
-    // If so, whether to send them over the main as well
     "send_tells_over_main": false,
-    // Redirect messages from workers to main
     "relay_worker_tells": true,
-    // Algorithm to use for message distribution (round-robin or by-charid)
     "default_mode": "round-robin",
-    // List of worker accounts (NOT the main) with credentials
     "accounts": [
         {
             "username": "myaccount1",

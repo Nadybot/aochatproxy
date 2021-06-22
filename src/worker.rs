@@ -14,6 +14,7 @@ use nadylib::{
 use tokio::{
     spawn,
     sync::{mpsc, oneshot, Notify},
+    task::JoinHandle,
 };
 
 use std::{fmt, sync::Arc};
@@ -48,10 +49,10 @@ impl Worker {
         packet_sender: SocketSendHandle,
         logged_in: Arc<Notify>,
         worker_ids: Arc<DashSet<u32>>,
-    ) -> Self {
+    ) -> (Self, JoinHandle<Result<()>>) {
         let conf = SocketConfig::default().keepalive(id != 0);
 
-        let socket = AOSocket::connect(config.server_address.clone(), conf)
+        let socket = AOSocket::connect(&*config.server_address.clone(), conf)
             .await
             .unwrap();
 
@@ -60,14 +61,14 @@ impl Worker {
         let buddies = Arc::new(DashSet::new());
         let pending_buddies = Arc::new(DashMap::new());
 
-        if id == 0 {
+        let task = if id == 0 {
             spawn(main_receive_loop(
                 socket,
                 logged_in,
                 packet_sender.clone(),
                 buddies.clone(),
                 pending_buddies.clone(),
-            ));
+            ))
         } else {
             spawn(worker_receive_loop(
                 id,
@@ -77,16 +78,19 @@ impl Worker {
                 buddies.clone(),
                 pending_buddies.clone(),
                 worker_ids.clone(),
-            ));
-        }
+            ))
+        };
 
-        Worker {
-            receiver,
-            buddies,
-            packet_sender: sender,
-            pending_buddies,
-            counter: 0,
-        }
+        (
+            Worker {
+                receiver,
+                buddies,
+                packet_sender: sender,
+                pending_buddies,
+                counter: 0,
+            },
+            task,
+        )
     }
 
     async fn handle_message(&mut self, msg: WorkerMessage) {
@@ -230,7 +234,7 @@ async fn worker_receive_loop(
                 packet_sender.send_raw(packet_type, body).await?;
             }
             PacketType::MsgPrivate => {
-                if config.relay_worker_tells {
+                if *config.relay_worker_tells {
                     let mut m = MsgPrivatePacket::load(&body)?;
                     debug!("Relaying tell message from worker #{} to main", id);
                     m.message.send_tag = identifier.clone();
@@ -279,12 +283,13 @@ impl WorkerHandle {
         packet_sender: SocketSendHandle,
         logged_in: Arc<Notify>,
         worker_ids: Arc<DashSet<u32>>,
-    ) -> Self {
+    ) -> (Self, JoinHandle<Result<()>>) {
         let (sender, receiver) = mpsc::channel(1000);
-        let worker = Worker::new(id, config, receiver, packet_sender, logged_in, worker_ids).await;
+        let (worker, task) =
+            Worker::new(id, config, receiver, packet_sender, logged_in, worker_ids).await;
         spawn(run_worker(worker));
 
-        Self { id, sender }
+        (Self { id, sender }, task)
     }
 
     pub async fn get_total_buddies(&self) -> usize {

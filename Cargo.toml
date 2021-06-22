@@ -1,6 +1,6 @@
 [package]
 name = "aochatproxy"
-version = "4.0.1"
+version = "5.0.0"
 authors = ["Jens Reidel <adrian@travitia.xyz>"]
 edition = "2018"
 
@@ -11,15 +11,8 @@ dashmap = "4.0"
 env_logger = { version = "0.8", default-features = false, features = ["termcolor", "atty", "humantime"] }
 log = "0.4"
 nadylib = { git = "https://github.com/Nadybot/nadylib", branch = "unstable", default-features = false }
-serde = { version = "1.0", features = ["derive"] }
-deser-hjson = "0.1"
-serde_json = { version = "1.0", optional = true }
-simd-json = { version = "0.4", default-features = false, features = ["serde_impl"], optional = true }
-tokio = { version = "1", default-features = false, features = ["macros", "rt-multi-thread"] }
-
-[features]
-default = ["serde-json"]
-serde-json = ["serde_json"]
+nanoserde = "0.1"
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread"] }
 
 [profile.release]
 codegen-units = 1

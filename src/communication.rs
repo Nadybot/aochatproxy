@@ -1,42 +1,94 @@
-use serde::{Deserialize, Serialize};
+use nanoserde::{DeJson, DeJsonErr, DeJsonState, SerJson, SerJsonState};
+use std::str::Chars;
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug)]
 pub enum Command {
-    #[serde(rename = "capabilities")]
     Capabilities,
-    #[serde(rename = "ping")]
     Ping,
 }
 
-#[derive(Deserialize, Serialize, Debug, PartialEq, Copy, Clone)]
+impl DeJson for Command {
+    fn de_json(state: &mut DeJsonState, input: &mut Chars) -> Result<Self, DeJsonErr> {
+        let s = String::de_json(state, input)?;
+        match s.as_ref() {
+            "capabilities" => Ok(Self::Capabilities),
+            "ping" => Ok(Self::Ping),
+            _ => Err(DeJsonErr {
+                msg: "Invalid Command value".to_string(),
+                line: state.line,
+                col: state.col,
+            }),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum SendMode {
-    #[serde(rename = "round-robin")]
     RoundRobin,
-    #[serde(rename = "by-charid")]
     ByCharId,
-    #[serde(rename = "by-msgid")]
     ByMsgId,
-    #[serde(rename = "by-worker")]
     ByWorker,
-    #[serde(rename = "proxy-default")]
     Default,
 }
 
-#[derive(Deserialize, Debug)]
+impl Default for SendMode {
+    fn default() -> Self {
+        Self::RoundRobin
+    }
+}
+
+impl SendMode {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::RoundRobin => "round-robin",
+            Self::ByCharId => "by-charid",
+            Self::ByMsgId => "by-msgid",
+            Self::ByWorker => "by-worker",
+            Self::Default => "proxy-default",
+        }
+    }
+}
+
+impl DeJson for SendMode {
+    fn de_json(state: &mut DeJsonState, input: &mut Chars) -> Result<Self, DeJsonErr> {
+        let s = String::de_json(state, input)?;
+        match s.as_ref() {
+            "round-robin" => Ok(Self::RoundRobin),
+            "by-charid" => Ok(Self::ByCharId),
+            "by-msgid" => Ok(Self::ByMsgId),
+            "by-worker" => Ok(Self::ByWorker),
+            "proxy-default" => Ok(Self::Default),
+            _ => Err(DeJsonErr {
+                msg: "Invalid SendMode value".to_string(),
+                line: state.line,
+                col: state.col,
+            }),
+        }
+    }
+}
+
+impl SerJson for SendMode {
+    fn ser_json(&self, d: usize, state: &mut SerJsonState) {
+        let val = self.as_str().to_string();
+        val.ser_json(d, state);
+    }
+}
+
+#[derive(Debug, DeJson)]
 pub struct CommandPayload {
     pub cmd: Command,
     pub worker: Option<usize>,
     pub payload: Option<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug, DeJson)]
 pub struct SendMessagePayload {
     pub mode: SendMode,
     pub msgid: Option<usize>,
     pub worker: Option<usize>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug, DeJson)]
 pub struct BuddyAddPayload {
     pub worker: usize,
 }
