@@ -11,7 +11,7 @@ dashmap = "4.0"
 env_logger = { version = "0.8", default-features = false, features = ["termcolor", "atty", "humantime"] }
 log = "0.4"
 nadylib = { git = "https://github.com/Nadybot/nadylib", branch = "unstable", default-features = false }
-nanoserde = "0.1"
+nanoserde = { git = "https://github.com/not-fl3/nanoserde" }
 tokio = { version = "1", default-features = false, features = ["rt-multi-thread"] }
 
 [profile.release]

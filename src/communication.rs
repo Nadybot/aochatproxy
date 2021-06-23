@@ -1,33 +1,24 @@
-use nanoserde::{DeJson, DeJsonErr, DeJsonState, SerJson, SerJsonState};
-use std::str::Chars;
+use nanoserde::{DeJson, SerJson};
 
-#[derive(Debug)]
+#[derive(DeJson, Debug)]
 pub enum Command {
+    #[nserde(rename = "capabilities")]
     Capabilities,
+    #[nserde(rename = "ping")]
     Ping,
 }
 
-impl DeJson for Command {
-    fn de_json(state: &mut DeJsonState, input: &mut Chars) -> Result<Self, DeJsonErr> {
-        let s = String::de_json(state, input)?;
-        match s.as_ref() {
-            "capabilities" => Ok(Self::Capabilities),
-            "ping" => Ok(Self::Ping),
-            _ => Err(DeJsonErr {
-                msg: "Invalid Command value".to_string(),
-                line: state.line,
-                col: state.col,
-            }),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(DeJson, SerJson, Debug, PartialEq, Copy, Clone)]
 pub enum SendMode {
+    #[nserde(rename = "round-robin")]
     RoundRobin,
+    #[nserde(rename = "by-charid")]
     ByCharId,
+    #[nserde(rename = "by-msgid")]
     ByMsgId,
+    #[nserde(rename = "by-worker")]
     ByWorker,
+    #[nserde(rename = "proxy-default")]
     Default,
 }
 
@@ -46,31 +37,6 @@ impl SendMode {
             Self::ByWorker => "by-worker",
             Self::Default => "proxy-default",
         }
-    }
-}
-
-impl DeJson for SendMode {
-    fn de_json(state: &mut DeJsonState, input: &mut Chars) -> Result<Self, DeJsonErr> {
-        let s = String::de_json(state, input)?;
-        match s.as_ref() {
-            "round-robin" => Ok(Self::RoundRobin),
-            "by-charid" => Ok(Self::ByCharId),
-            "by-msgid" => Ok(Self::ByMsgId),
-            "by-worker" => Ok(Self::ByWorker),
-            "proxy-default" => Ok(Self::Default),
-            _ => Err(DeJsonErr {
-                msg: "Invalid SendMode value".to_string(),
-                line: state.line,
-                col: state.col,
-            }),
-        }
-    }
-}
-
-impl SerJson for SendMode {
-    fn ser_json(&self, d: usize, state: &mut SerJsonState) {
-        let val = self.as_str().to_string();
-        val.ser_json(d, state);
     }
 }
 
