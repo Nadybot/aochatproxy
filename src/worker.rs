@@ -234,7 +234,7 @@ async fn worker_receive_loop(
                 packet_sender.send_raw(packet_type, body).await?;
             }
             PacketType::MsgPrivate => {
-                if *config.relay_worker_tells {
+                if config.relay_worker_tells {
                     let mut m = MsgPrivatePacket::load(&body)?;
                     debug!("Relaying tell message from worker #{} to main", id);
                     m.message.send_tag = identifier.clone();

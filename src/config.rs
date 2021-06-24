@@ -1,14 +1,12 @@
 use crate::communication::SendMode;
 
 use log::warn;
-use nanoserde::{DeJson, DeJsonErr, DeJsonState};
+use nanoserde::DeJson;
 use std::{
     env::{args, set_var, var},
     fmt::{Display, Formatter, Result as FmtResult},
     fs::read_to_string,
-    ops::Deref,
     path::Path,
-    str::Chars,
 };
 
 #[derive(Clone, Debug, DeJson)]
@@ -18,139 +16,44 @@ pub struct AccountData {
     pub character: String,
 }
 
-#[derive(Clone, Debug)]
-pub struct RustLog(String);
-
-impl Default for RustLog {
-    fn default() -> Self {
-        Self(String::from("info"))
-    }
-}
-
-impl DeJson for RustLog {
-    fn de_json(state: &mut DeJsonState, input: &mut Chars) -> Result<Self, DeJsonErr> {
-        String::de_json(state, input).map(Self)
-    }
-}
-
-impl Deref for RustLog {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct Port(u32);
-
-impl Default for Port {
-    fn default() -> Self {
-        Self(9993)
-    }
-}
-
-impl DeJson for Port {
-    fn de_json(state: &mut DeJsonState, input: &mut Chars) -> Result<Self, DeJsonErr> {
-        u32::de_json(state, input).map(Self)
-    }
-}
-
-impl Deref for Port {
-    type Target = u32;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct ServerAddress(String);
-
-impl Default for ServerAddress {
-    fn default() -> Self {
-        Self(String::from("chat.d1.funcom.com:7105"))
-    }
-}
-
-impl DeJson for ServerAddress {
-    fn de_json(state: &mut DeJsonState, input: &mut Chars) -> Result<Self, DeJsonErr> {
-        String::de_json(state, input).map(Self)
-    }
-}
-
-impl Deref for ServerAddress {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Clone, Debug, Copy)]
-pub struct DefaultTrueBool(bool);
-
-impl Default for DefaultTrueBool {
-    fn default() -> Self {
-        Self(true)
-    }
-}
-
-impl DeJson for DefaultTrueBool {
-    fn de_json(state: &mut DeJsonState, input: &mut Chars) -> Result<Self, DeJsonErr> {
-        bool::de_json(state, input).map(Self)
-    }
-}
-
-impl Deref for DefaultTrueBool {
-    type Target = bool;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Clone, Debug, Copy)]
-pub struct DefaultFalseBool(bool);
-
-impl Default for DefaultFalseBool {
-    fn default() -> Self {
-        Self(false)
-    }
-}
-
-impl DeJson for DefaultFalseBool {
-    fn de_json(state: &mut DeJsonState, input: &mut Chars) -> Result<Self, DeJsonErr> {
-        bool::de_json(state, input).map(Self)
-    }
-}
-
-impl Deref for DefaultFalseBool {
-    type Target = bool;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 #[derive(Clone, Default, DeJson, Debug)]
 pub struct Config {
-    #[nserde(default)]
-    pub rust_log: RustLog,
-    #[nserde(default)]
-    pub port_number: Port,
+    #[nserde(default = "default_log")]
+    pub rust_log: String,
+    #[nserde(default = "default_port")]
+    pub port_number: u32,
     #[nserde(default)]
     pub accounts: Vec<AccountData>,
-    #[nserde(default)]
-    pub server_address: ServerAddress,
-    #[nserde(default)]
-    pub spam_bot_support: DefaultTrueBool,
-    #[nserde(default)]
-    pub send_tells_over_main: DefaultTrueBool,
-    #[nserde(default)]
-    pub relay_worker_tells: DefaultFalseBool,
+    #[nserde(default = "default_server_address")]
+    pub server_address: String,
+    #[nserde(default = "default_true")]
+    pub spam_bot_support: bool,
+    #[nserde(default = "default_true")]
+    pub send_tells_over_main: bool,
+    #[nserde(default = "default_false")]
+    pub relay_worker_tells: bool,
     #[nserde(default)]
     pub default_mode: SendMode,
+}
+
+fn default_log() -> String {
+    String::from("info")
+}
+
+fn default_port() -> u32 {
+    9993
+}
+
+fn default_server_address() -> String {
+    String::from("chat.d1.funcom.com:7105")
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_false() -> bool {
+    false
 }
 
 pub enum ConfigError {
@@ -203,30 +106,30 @@ impl Config {
         }
 
         if let Ok(addr) = var("SERVER_ADDRESS") {
-            self.server_address = ServerAddress(addr);
+            self.server_address = addr;
             changed += 1;
         }
         if let Ok(port) = var("PROXY_PORT_NUMBER") {
             if let Ok(p) = port.parse() {
-                self.port_number = Port(p);
+                self.port_number = p;
                 changed += 1;
             }
         }
         if let Ok(spam_bot_support) = var("SPAM_BOT_SUPPORT") {
             if let Ok(s) = spam_bot_support.parse() {
-                self.spam_bot_support = DefaultTrueBool(s);
+                self.spam_bot_support = s;
                 changed += 1;
             }
         }
         if let Ok(send_tells_over_main) = var("SEND_TELLS_OVER_MAIN") {
             if let Ok(s) = send_tells_over_main.parse() {
-                self.send_tells_over_main = DefaultTrueBool(s);
+                self.send_tells_over_main = s;
                 changed += 1;
             }
         }
         if let Ok(relay_worker_tells) = var("RELAY_WORKER_TELLS") {
             if let Ok(r) = relay_worker_tells.parse() {
-                self.relay_worker_tells = DefaultFalseBool(r);
+                self.relay_worker_tells = r;
                 changed += 1;
             }
         }
@@ -239,7 +142,7 @@ impl Config {
             }
         }
         if let Ok(level) = var("RUST_LOG") {
-            self.rust_log = RustLog(level);
+            self.rust_log = level;
             changed += 1;
         }
 
@@ -259,7 +162,7 @@ impl Config {
             }
         };
 
-        if *self.spam_bot_support && (!*self.send_tells_over_main && self.accounts.is_empty()) {
+        if self.spam_bot_support && (!self.send_tells_over_main && self.accounts.is_empty()) {
             return Err(ConfigError::InvalidConfig(String::from(
                 "When SPAM_BOT_SUPPORT is true and SEND_TELLS_OVER_MAIN is disabled, at least one worker needs to be configured",
             )));

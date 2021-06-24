@@ -166,7 +166,7 @@ dependencies = [
 [[package]]
 name = "nanoserde"
 version = "0.1.26"
-source = "git+https://github.com/not-fl3/nanoserde#64f7798ce246b2f100d4fc14ccac9800e96a8185"
+source = "git+https://github.com/Gelbpunkt/nanoserde?branch=default-method#95f89ddb90eb5a97f5f178e72c20d06b27d99b95"
 dependencies = [
  "nanoserde-derive",
 ]
@@ -174,7 +174,7 @@ dependencies = [
 [[package]]
 name = "nanoserde-derive"
 version = "0.1.17"
-source = "git+https://github.com/not-fl3/nanoserde#64f7798ce246b2f100d4fc14ccac9800e96a8185"
+source = "git+https://github.com/Gelbpunkt/nanoserde?branch=default-method#95f89ddb90eb5a97f5f178e72c20d06b27d99b95"
 
 [[package]]
 name = "ntapi"

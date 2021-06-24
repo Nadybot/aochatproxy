@@ -105,8 +105,8 @@ async fn run_proxy() -> NadylibResult<()> {
             worker_tasks.push(task);
         }
 
-        let tcp_server = TcpListener::bind(format!("0.0.0.0:{}", *config.port_number)).await?;
-        info!("Listening on port {}", *config.port_number);
+        let tcp_server = TcpListener::bind(format!("0.0.0.0:{}", config.port_number)).await?;
+        info!("Listening on port {}", config.port_number);
         info!("Waiting for client to connect...");
         let (client, addr) = tcp_server.accept().await?;
         info!("Client connected from {}", addr);
@@ -148,7 +148,7 @@ async fn run_proxy() -> NadylibResult<()> {
         let proxy_task: JoinHandle<NadylibResult<()>> = spawn(async move {
             // For round robin on private msgs
             let start_at = {
-                if *send_tells_over_main {
+                if send_tells_over_main {
                     0
                 } else {
                     1
@@ -220,7 +220,7 @@ async fn run_proxy() -> NadylibResult<()> {
                     PacketType::MsgPrivate => {
                         let mut m = MsgPrivatePacket::load(&packet.1)?;
 
-                        if *spam_bot_support && m.message.send_tag != "\u{0}" {
+                        if spam_bot_support && m.message.send_tag != "\u{0}" {
                             // We assume legacy aka spam tag
                             let mut send_mode = default_mode;
                             let charid = {
@@ -252,7 +252,7 @@ async fn run_proxy() -> NadylibResult<()> {
                                     || (send_mode == communication::SendMode::ByMsgId
                                         && default_mode == communication::SendMode::ByCharId)
                                 {
-                                    if *send_tells_over_main {
+                                    if send_tells_over_main {
                                         (charid) % (account_num + 1)
                                     } else {
                                         (charid) % account_num + 1
@@ -260,7 +260,7 @@ async fn run_proxy() -> NadylibResult<()> {
                                 } else if let (Some(m), communication::SendMode::ByMsgId) =
                                     (msgid, send_mode)
                                 {
-                                    if *send_tells_over_main {
+                                    if send_tells_over_main {
                                         m % (account_num + 1)
                                     } else {
                                         m % account_num + 1
@@ -268,7 +268,7 @@ async fn run_proxy() -> NadylibResult<()> {
                                 } else if let (Some(w), communication::SendMode::ByWorker) =
                                     (worker, send_mode)
                                 {
-                                    if *send_tells_over_main {
+                                    if send_tells_over_main {
                                         w % (account_num + 1)
                                     } else {
                                         (w - 1) % (account_num) + 1
