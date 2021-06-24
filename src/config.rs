@@ -16,44 +16,24 @@ pub struct AccountData {
     pub character: String,
 }
 
-#[derive(Clone, Default, DeJson, Debug)]
+#[derive(Clone, DeJson, Debug)]
 pub struct Config {
-    #[nserde(default = "default_log")]
+    #[nserde(default = "info")]
     pub rust_log: String,
-    #[nserde(default = "default_port")]
+    #[nserde(default = 9993)]
     pub port_number: u32,
     #[nserde(default)]
     pub accounts: Vec<AccountData>,
-    #[nserde(default = "default_server_address")]
+    #[nserde(default = "chat.d1.funcom.com:7105")]
     pub server_address: String,
-    #[nserde(default = "default_true")]
+    #[nserde(default = "true")]
     pub spam_bot_support: bool,
-    #[nserde(default = "default_true")]
+    #[nserde(default = "true")]
     pub send_tells_over_main: bool,
-    #[nserde(default = "default_false")]
+    #[nserde(default = "false")]
     pub relay_worker_tells: bool,
     #[nserde(default)]
     pub default_mode: SendMode,
-}
-
-fn default_log() -> String {
-    String::from("info")
-}
-
-fn default_port() -> u32 {
-    9993
-}
-
-fn default_server_address() -> String {
-    String::from("chat.d1.funcom.com:7105")
-}
-
-fn default_true() -> bool {
-    true
-}
-
-fn default_false() -> bool {
-    false
 }
 
 pub enum ConfigError {
@@ -188,7 +168,7 @@ pub fn try_load() -> Result<Config, ConfigError> {
             used_config = true;
             conf
         } else {
-            Config::default()
+            DeJson::deserialize_json("{}").unwrap()
         }
     };
     let changed_from_env = conf.mash_with_env()?;

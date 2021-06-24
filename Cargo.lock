@@ -84,9 +84,9 @@ dependencies = [
 
 [[package]]
 name = "hermit-abi"
-version = "0.1.18"
+version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "322f4de77956e22ed0e5032c359a0f1273f1f7f0d79bfa3b8ffbc730d7fbcc5c"
+checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
 dependencies = [
  "libc",
 ]
@@ -166,7 +166,7 @@ dependencies = [
 [[package]]
 name = "nanoserde"
 version = "0.1.26"
-source = "git+https://github.com/Gelbpunkt/nanoserde?branch=default-method#95f89ddb90eb5a97f5f178e72c20d06b27d99b95"
+source = "git+https://github.com/Gelbpunkt/nanoserde?branch=default-method#c226d0b029e6fe85b064e1be38b854697847e9a9"
 dependencies = [
  "nanoserde-derive",
 ]
@@ -174,7 +174,7 @@ dependencies = [
 [[package]]
 name = "nanoserde-derive"
 version = "0.1.17"
-source = "git+https://github.com/Gelbpunkt/nanoserde?branch=default-method#95f89ddb90eb5a97f5f178e72c20d06b27d99b95"
+source = "git+https://github.com/Gelbpunkt/nanoserde?branch=default-method#c226d0b029e6fe85b064e1be38b854697847e9a9"
 
 [[package]]
 name = "ntapi"
