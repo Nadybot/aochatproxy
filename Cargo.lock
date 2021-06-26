@@ -165,8 +165,9 @@ dependencies = [
 
 [[package]]
 name = "nanoserde"
-version = "0.1.26"
-source = "git+https://github.com/Gelbpunkt/nanoserde?branch=default-method#c226d0b029e6fe85b064e1be38b854697847e9a9"
+version = "0.1.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4796cfd5e7314fa25ecc4025e59ead8e2202d6aa118c495774e608f80bad6d56"
 dependencies = [
  "nanoserde-derive",
 ]
@@ -174,7 +175,8 @@ dependencies = [
 [[package]]
 name = "nanoserde-derive"
 version = "0.1.17"
-source = "git+https://github.com/Gelbpunkt/nanoserde?branch=default-method#c226d0b029e6fe85b064e1be38b854697847e9a9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b12bb994741335d987eb17ba5d6dbf0801d1cd2859144e920d97e0ed6695738a"
 
 [[package]]
 name = "ntapi"
@@ -227,9 +229,9 @@ dependencies = [
 
 [[package]]
 name = "pin-project-lite"
-version = "0.2.6"
+version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc0e1f259c92177c30a4c9d177246edd0a3568b25756a977d0632cf8fa37e905"
+checksum = "8d31d11c69a6b52a174b42bdc0c30e5e11670f90788b2c471c31c1d17d449443"
 
 [[package]]
 name = "termcolor"
