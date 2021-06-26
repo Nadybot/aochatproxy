@@ -1,8 +1,7 @@
 use crate::communication::SendMode;
 
-use deser_hjson::from_str;
 use log::warn;
-use serde::Deserialize;
+use nanoserde::DeJson;
 use std::{
     env::{args, set_var, var},
     fmt::{Display, Formatter, Result as FmtResult},
@@ -10,54 +9,31 @@ use std::{
     path::Path,
 };
 
-#[derive(Clone, Deserialize, Debug)]
+#[derive(Clone, Debug, DeJson)]
 pub struct AccountData {
     pub username: String,
     pub password: String,
     pub character: String,
 }
 
-#[derive(Clone, Deserialize, Debug)]
+#[derive(Clone, DeJson, Debug)]
 pub struct Config {
-    #[serde(default = "default_log")]
+    #[nserde(default = "info")]
     pub rust_log: String,
-    #[serde(default = "default_port")]
+    #[nserde(default = 9993)]
     pub port_number: u32,
-    #[serde(default)]
+    #[nserde(default)]
     pub accounts: Vec<AccountData>,
-    #[serde(default = "default_server_address")]
+    #[nserde(default = "chat.d1.funcom.com:7105")]
     pub server_address: String,
-    #[serde(default = "default_spam")]
+    #[nserde(default = "true")]
     pub spam_bot_support: bool,
-    #[serde(default = "default_main")]
+    #[nserde(default = "true")]
     pub send_tells_over_main: bool,
-    #[serde(default = "default_relay")]
+    #[nserde(default = "false")]
     pub relay_worker_tells: bool,
-    #[serde(default = "default_mode")]
+    #[nserde(default)]
     pub default_mode: SendMode,
-}
-
-// Serde needs functions for defaults
-fn default_log() -> String {
-    String::from("info")
-}
-fn default_port() -> u32 {
-    9993
-}
-fn default_server_address() -> String {
-    String::from("chat.d1.funcom.com:7105")
-}
-fn default_spam() -> bool {
-    true
-}
-fn default_main() -> bool {
-    true
-}
-fn default_relay() -> bool {
-    false
-}
-fn default_mode() -> SendMode {
-    SendMode::RoundRobin
 }
 
 pub enum ConfigError {
@@ -154,7 +130,7 @@ impl Config {
     }
 
     fn validate_self(&self) -> Result<(), ConfigError> {
-        set_var("RUST_LOG", &self.rust_log);
+        set_var("RUST_LOG", &*self.rust_log);
         env_logger::builder().format_timestamp_millis().init();
 
         match self.default_mode {
@@ -175,10 +151,11 @@ impl Config {
     }
 }
 
-pub fn load_from_file(path: String) -> Result<Config, ConfigError> {
-    let content = read_to_string(&path).map_err(|_| ConfigError::NotFound(path))?;
-    let config: Config =
-        from_str(&content).map_err(|e| ConfigError::InvalidConfig(e.to_string()))?;
+pub fn load_from_file(path: &str) -> Result<Config, ConfigError> {
+    let config: Config;
+    let content = read_to_string(path).map_err(|_| ConfigError::NotFound(path.to_string()))?;
+    config = DeJson::deserialize_json(&content)
+        .map_err(|e| ConfigError::InvalidConfig(e.to_string()))?;
     Ok(config)
 }
 
@@ -187,11 +164,11 @@ pub fn try_load() -> Result<Config, ConfigError> {
     let mut used_config = false;
     let mut conf: Config = {
         if Path::new(&file).exists() {
-            let conf = load_from_file(file)?;
+            let conf = load_from_file(&file)?;
             used_config = true;
             conf
         } else {
-            from_str("{}").unwrap()
+            DeJson::deserialize_json("{}").unwrap()
         }
     };
     let changed_from_env = conf.mash_with_env()?;
@@ -199,7 +176,7 @@ pub fn try_load() -> Result<Config, ConfigError> {
     conf.validate_self()?;
 
     if !used_config && changed_from_env == 0 {
-        warn!("config.json not found, proceeding with defaults");
+        warn!("{} not found, proceeding with defaults", file);
     }
 
     Ok(conf)

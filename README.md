@@ -10,21 +10,13 @@ Put the following in a file called `config.json`:
 
 ```javascript
 {
-  // Log level, leave at info unless you want to see packets
   "rust_log": "info",
-  // Port the proxy will listen on
   "port_number": 9993,
-  // Remote chat server to connect to, this is RK5
   "server_address": "chat.d1.funcom.com:7105",
-  // Whether to support sending messages over workers
   "spam_bot_support": true,
-  // If so, whether to send them over the main as well
   "send_tells_over_main": false,
-  // Redirect messages from workers to main
   "relay_worker_tells": true,
-  // Algorithm to use for message distribution (round-robin or by-charid)
   "default_mode": "round-robin",
-  // List of worker accounts (NOT the main) with credentials
   "accounts": [
     {
       "username": "myaccount1",
@@ -40,7 +32,15 @@ Put the following in a file called `config.json`:
 }
 ```
 
-With `SPAM_BOT_SUPPORT` enabled, at least one worker is required unless `SEND_TELLS_OVER_MAIN` is also enabled.
+- `rust_log` configures the logging verbosity. Leave this at `info` for normal use or `debug`/`trace` if you need to see packets
+- `port_number` sets the port where the client will be able to connect on
+- `server_address` sets the chat server that it will connect to
+- `spam_bot_support` toggles support for distributing messages sent via `spam` over workers
+- `send_tells_over_main` will define whether distributing these messages will also use the main client
+- `relay_worker_tells` toggles relaying tells to the workers to the main
+- `relay_by_id` will change the method for choosing a worker for spam messages from round-robin to character IDs
+
+With `spam_bot_support` enabled, at least one worker is required unless `send_tells_over_main` is also enabled.
 
 ## Running
 
@@ -65,7 +65,7 @@ aochatproxy currently returns this (in another `Ping` packet, with different val
 ```json
 {
   "name": "aochatproxy",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "type": "capabilities",
   "supported-cmds": ["capabilities", "ping"],
   "rate-limited": true,

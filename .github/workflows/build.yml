@@ -19,6 +19,7 @@ jobs:
 
       - name: Install cross compilers
         run: |
+          sudo apt update
           sudo apt install gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf -y
 
       - name: Set up Rust for x86_64
@@ -32,12 +33,6 @@ jobs:
         run: |
           cargo build --release
           cp target/release/aochatproxy aochatproxy-linux-x86_64
-
-      - name: Build SIMD x86_64
-        run: |
-          export RUSTFLAGS="-C target-cpu=haswell"
-          cargo build --release
-          cp target/release/aochatproxy aochatproxy-linux-x86_64-optimized
 
       - name: Set up Rust for aarch64
         uses: actions-rs/toolchain@v1
@@ -71,7 +66,6 @@ jobs:
           name: aochatproxy-linux
           path: |
             aochatproxy-linux-x86_64
-            aochatproxy-linux-x86_64-optimized
             aochatproxy-linux-aarch64
             aochatproxy-linux-armv7
 

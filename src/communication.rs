@@ -1,42 +1,60 @@
-use serde::{Deserialize, Serialize};
+use nanoserde::{DeJson, SerJson};
 
-#[derive(Deserialize, Debug)]
+#[derive(DeJson, Debug)]
 pub enum Command {
-    #[serde(rename = "capabilities")]
+    #[nserde(rename = "capabilities")]
     Capabilities,
-    #[serde(rename = "ping")]
+    #[nserde(rename = "ping")]
     Ping,
 }
 
-#[derive(Deserialize, Serialize, Debug, PartialEq, Copy, Clone)]
+#[derive(DeJson, SerJson, Debug, PartialEq, Copy, Clone)]
 pub enum SendMode {
-    #[serde(rename = "round-robin")]
+    #[nserde(rename = "round-robin")]
     RoundRobin,
-    #[serde(rename = "by-charid")]
+    #[nserde(rename = "by-charid")]
     ByCharId,
-    #[serde(rename = "by-msgid")]
+    #[nserde(rename = "by-msgid")]
     ByMsgId,
-    #[serde(rename = "by-worker")]
+    #[nserde(rename = "by-worker")]
     ByWorker,
-    #[serde(rename = "proxy-default")]
+    #[nserde(rename = "proxy-default")]
     Default,
 }
 
-#[derive(Deserialize, Debug)]
+impl Default for SendMode {
+    fn default() -> Self {
+        Self::RoundRobin
+    }
+}
+
+impl SendMode {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::RoundRobin => "round-robin",
+            Self::ByCharId => "by-charid",
+            Self::ByMsgId => "by-msgid",
+            Self::ByWorker => "by-worker",
+            Self::Default => "proxy-default",
+        }
+    }
+}
+
+#[derive(Debug, DeJson)]
 pub struct CommandPayload {
     pub cmd: Command,
     pub worker: Option<usize>,
     pub payload: Option<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug, DeJson)]
 pub struct SendMessagePayload {
     pub mode: SendMode,
     pub msgid: Option<usize>,
     pub worker: Option<usize>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug, DeJson)]
 pub struct BuddyAddPayload {
     pub worker: usize,
 }
