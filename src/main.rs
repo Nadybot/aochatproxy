@@ -1,4 +1,4 @@
-#![deny(clippy::all)]
+#![deny(clippy::pedantic)]
 use dashmap::DashSet;
 use log::{debug, error, info, trace, warn};
 use nadylib::{
@@ -37,6 +37,7 @@ async fn wait_server_ready(addr: &str) {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 async fn run_proxy() -> NadylibResult<()> {
     let conf = config::try_load();
     let config = conf.unwrap_or_else(|e| {
@@ -135,7 +136,7 @@ async fn run_proxy() -> NadylibResult<()> {
             logged_in_waiter.notified().await;
             info!("Main logged in, relaying packets now");
             while let Some(msg) = worker_receiver.recv().await {
-                let _ = sock_to_workers.send_raw(msg.0, msg.1).await;
+                let _res = sock_to_workers.send_raw(msg.0, msg.1).await;
             }
 
             Ok(())
@@ -172,36 +173,33 @@ async fn run_proxy() -> NadylibResult<()> {
                     PacketType::BuddyAdd => {
                         let pack = BuddyAddPacket::load(&packet.1)?;
 
-                        let send_on = match communication::BuddyAddPayload::deserialize_json(
-                            &pack.send_tag,
-                        ) {
-                            Ok(v) => {
-                                // Do not send the packet at all if the worker is invalid
-                                if v.worker > account_num {
-                                    continue;
-                                }
-                                debug!("Adding buddy on {} (forced by packet)", workers[v.worker]);
-                                v.worker
+                        let send_on = if let Ok(v) =
+                            communication::BuddyAddPayload::deserialize_json(&pack.send_tag)
+                        {
+                            // Do not send the packet at all if the worker is invalid
+                            if v.worker > account_num {
+                                continue;
                             }
-                            Err(_) => {
-                                // Add the buddy on the worker with least buddies
-                                let mut least_buddies = 0;
-                                let mut buddy_count = workers[0].get_total_buddies().await;
+                            debug!("Adding buddy on {} (forced by packet)", workers[v.worker]);
+                            v.worker
+                        } else {
+                            // Add the buddy on the worker with least buddies
+                            let mut least_buddies = 0;
+                            let mut buddy_count = workers[0].get_total_buddies().await;
 
-                                for (id, worker) in workers.iter().enumerate().skip(1) {
-                                    let worker_buddy_count = worker.get_total_buddies().await;
-                                    if worker_buddy_count < buddy_count {
-                                        least_buddies = id;
-                                        buddy_count = worker_buddy_count;
-                                    }
+                            for (id, worker) in workers.iter().enumerate().skip(1) {
+                                let worker_buddy_count = worker.get_total_buddies().await;
+                                if worker_buddy_count < buddy_count {
+                                    least_buddies = id;
+                                    buddy_count = worker_buddy_count;
                                 }
-
-                                debug!(
-                                    "Adding buddy on {} ({} current buddies)",
-                                    workers[least_buddies], buddy_count
-                                );
-                                least_buddies
                             }
+
+                            debug!(
+                                "Adding buddy on {} ({} current buddies)",
+                                workers[least_buddies], buddy_count
+                            );
+                            least_buddies
                         };
 
                         workers[send_on].send_packet(packet).await;
@@ -210,7 +208,7 @@ async fn run_proxy() -> NadylibResult<()> {
                         let b = BuddyRemovePacket::load(&packet.1)?;
 
                         // Remove the buddy on the workers that have it on the buddy list
-                        for worker in workers.iter() {
+                        for worker in &workers {
                             if worker.has_buddy(b.character_id).await {
                                 debug!("Removing buddy {} on {}", b.character_id, worker);
                                 worker.send_packet(packet.clone()).await;
@@ -299,7 +297,7 @@ async fn run_proxy() -> NadylibResult<()> {
                                 communication::Command::Capabilities => {
                                     p.client = identifier_clone.clone();
                                     let serialized = p.serialize();
-                                    let _ = command_reply.send(serialized);
+                                    let _res = command_reply.send(serialized);
                                 }
                                 communication::Command::Ping => {
                                     if let (Some(worker), Some(payload)) = (v.worker, v.payload) {

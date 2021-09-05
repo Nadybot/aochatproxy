@@ -36,6 +36,7 @@ pub struct Config {
     pub default_mode: SendMode,
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub enum ConfigError {
     InvalidConfig(String),
     NotFound(String),
@@ -51,7 +52,7 @@ impl Display for ConfigError {
 }
 
 impl Config {
-    pub fn mash_with_env(&mut self) -> Result<u8, ConfigError> {
+    pub fn mash_with_env(&mut self) -> u8 {
         let mut changed = 0;
         let mut next_number = 1;
 
@@ -73,7 +74,7 @@ impl Config {
                 if self.accounts.is_empty() {
                     break;
                 }
-                password = Ok(self.accounts.last().unwrap().password.clone())
+                password = Ok(self.accounts.last().unwrap().password.clone());
             }
             let account = AccountData {
                 username: username.unwrap(),
@@ -126,7 +127,7 @@ impl Config {
             changed += 1;
         }
 
-        Ok(changed)
+        changed
     }
 
     fn validate_self(&self) -> Result<(), ConfigError> {
@@ -171,7 +172,7 @@ pub fn try_load() -> Result<Config, ConfigError> {
             DeJson::deserialize_json("{}").unwrap()
         }
     };
-    let changed_from_env = conf.mash_with_env()?;
+    let changed_from_env = conf.mash_with_env();
 
     conf.validate_self()?;
 

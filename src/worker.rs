@@ -111,7 +111,7 @@ impl Worker {
                     }
                 }
 
-                let _ = self.packet_sender.send_raw(packet.0, packet.1).await;
+                let _res = self.packet_sender.send_raw(packet.0, packet.1).await;
             }
             WorkerMessage::HasBuddy { id, respond_to } => {
                 let has = self.buddies.contains(&id) || self.pending_buddies.contains_key(&id);
@@ -150,7 +150,7 @@ async fn main_receive_loop(
             _ => {}
         }
 
-        let _ = packet_sender.send_raw(packet.0, packet.1).await;
+        let _res = packet_sender.send_raw(packet.0, packet.1).await;
     }
 
     Ok(())
@@ -260,6 +260,7 @@ async fn run_worker(mut worker: Worker) {
     }
 }
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Clone)]
 pub struct WorkerHandle {
     pub id: usize,
@@ -296,13 +297,13 @@ impl WorkerHandle {
         let (send, recv) = oneshot::channel();
         let msg = WorkerMessage::GetTotalBuddies { respond_to: send };
 
-        let _ = self.sender.send(msg).await;
+        let _res = self.sender.send(msg).await;
         recv.await.unwrap()
     }
 
     pub async fn send_packet(&self, packet: SerializedPacket) {
         let msg = WorkerMessage::SendPacket { packet };
-        let _ = self.sender.send(msg).await;
+        let _res = self.sender.send(msg).await;
     }
 
     pub async fn has_buddy(&self, id: u32) -> bool {
@@ -311,7 +312,7 @@ impl WorkerHandle {
             id,
             respond_to: send,
         };
-        let _ = self.sender.send(msg).await;
+        let _res = self.sender.send(msg).await;
         recv.await.unwrap()
     }
 }

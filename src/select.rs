@@ -6,6 +6,7 @@ use std::{
     task::{Context, Poll},
 };
 
+#[allow(clippy::module_name_repetitions)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct SelectAll<Fut> {
     inner: Vec<Fut>,
@@ -13,6 +14,7 @@ pub struct SelectAll<Fut> {
 
 impl<Fut: Unpin> Unpin for SelectAll<Fut> {}
 
+#[allow(clippy::module_name_repetitions)]
 pub fn select_all<I>(iter: I) -> SelectAll<I::Item>
 where
     I: IntoIterator,
@@ -37,7 +39,7 @@ impl<Fut: Future + Unpin> Future for SelectAll<Fut> {
                 });
         match item {
             Some((idx, res)) => {
-                let _ = self.inner.swap_remove(idx);
+                let _removed = self.inner.swap_remove(idx);
                 let rest = mem::take(&mut self.inner);
                 Poll::Ready((res, idx, rest))
             }
