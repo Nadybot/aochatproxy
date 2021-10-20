@@ -1,5 +1,6 @@
 #![deny(clippy::pedantic)]
 use dashmap::DashSet;
+use libc::{c_int, sighandler_t, signal, SIGINT, SIGTERM};
 use log::{debug, error, info, trace, warn};
 use nadylib::{
     client_socket::SocketSendHandle,
@@ -336,7 +337,18 @@ async fn run_proxy() -> NadylibResult<()> {
     }
 }
 
+pub extern "C" fn handler(_: c_int) {
+    std::process::exit(0);
+}
+
+unsafe fn set_os_handlers() {
+    signal(SIGINT, handler as extern "C" fn(_) as sighandler_t);
+    signal(SIGTERM, handler as extern "C" fn(_) as sighandler_t);
+}
+
 fn main() -> NadylibResult<()> {
+    unsafe { set_os_handlers() };
+
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
