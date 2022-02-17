@@ -7,13 +7,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dashmap = "4.0"
+dashmap = "5.1"
 env_logger = { version = "0.9", default-features = false, features = ["termcolor", "atty", "humantime"] }
 libc = { version = "0.2", default-features = false }
 log = "0.4"
-nadylib = { git = "https://github.com/Nadybot/nadylib", branch = "unstable", default-features = false, features = ["async"] }
+nadylib = { git = "https://github.com/Nadybot/nadylib", branch = "unstable", default-features = false, features = ["async", "parking_lot"] }
 nanoserde = "0.1"
-tokio = { version = "1", default-features = false, features = ["rt-multi-thread"] }
+tokio = { version = "1", default-features = false, features = ["parking_lot", "rt-multi-thread"] }
 
 [profile.release]
 codegen-units = 1
