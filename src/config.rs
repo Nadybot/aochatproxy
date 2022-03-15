@@ -21,7 +21,7 @@ pub struct Config {
     #[nserde(default = "info")]
     pub rust_log: String,
     #[nserde(default = 9993)]
-    pub port_number: u32,
+    pub port_number: u16,
     #[nserde(default)]
     pub accounts: Vec<AccountData>,
     #[nserde(default = "chat.d1.funcom.com:7105")]

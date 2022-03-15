@@ -128,14 +128,15 @@ async fn main_receive_loop(
     buddies: Arc<DashSet<u32>>,
     pending_buddies: Arc<DashMap<u32, u32>>,
 ) -> Result<()> {
-    while let Ok(packet) = socket.read_raw_packet().await {
-        debug!("Received {:?} packet for main", packet.0);
-        trace!("Packet body: {:?}", packet.1);
+    loop {
+        let (packet_type, body) = socket.read_raw_packet().await?;
+        debug!("Received {:?} packet for main", packet_type);
+        trace!("Packet body: {:?}", body);
 
-        match packet.0 {
+        match packet_type {
             PacketType::LoginOk => logged_in.notify_waiters(),
             PacketType::BuddyAdd => {
-                let b = BuddyStatusPacket::load(&packet.1).unwrap();
+                let b = BuddyStatusPacket::load(&body).unwrap();
                 let num = b.send_tag.parse().unwrap_or_default();
                 debug!("Main: Buddy {} is online: {}", b.character_id, b.online);
                 pending_buddies.remove(&b.character_id);
@@ -143,17 +144,15 @@ async fn main_receive_loop(
                 buddies.insert(b.character_id);
             }
             PacketType::BuddyRemove => {
-                let b = BuddyRemovePacket::load(&packet.1).unwrap();
+                let b = BuddyRemovePacket::load(&body).unwrap();
                 debug!("Main: Buddy {} removed", b.character_id);
                 buddies.remove(&b.character_id);
             }
             _ => {}
         }
 
-        let _res = packet_sender.send_raw(packet.0, packet.1).await;
+        let _res = packet_sender.send_raw(packet_type, body).await;
     }
-
-    Ok(())
 }
 
 async fn worker_receive_loop(
@@ -168,8 +167,8 @@ async fn worker_receive_loop(
     let account = config.accounts[id - 1].clone();
     let identifier = format!(r#"{{"id": {}, "name": {:?}}}"#, id, account.character);
 
-    while let Ok((packet_type, body)) = socket.read_raw_packet().await {
-        // Read a packet and handle it if interested
+    loop {
+        let (packet_type, body) = socket.read_raw_packet().await?;
         debug!("Received {:?} packet for worker #{}", packet_type, id);
         trace!("Packet body: {:?}", body);
 

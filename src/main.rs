@@ -22,6 +22,7 @@ use tokio::{
 use worker::WorkerHandle;
 
 use std::{
+    net::{Ipv4Addr, SocketAddrV4},
     process::exit,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
@@ -107,7 +108,8 @@ async fn run_proxy() -> NadylibResult<()> {
             worker_tasks.push(task);
         }
 
-        let tcp_server = TcpListener::bind(format!("0.0.0.0:{}", config.port_number)).await?;
+        let addr = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), config.port_number);
+        let tcp_server = TcpListener::bind(addr).await?;
         info!("Listening on port {}", config.port_number);
         info!("Waiting for client to connect...");
         let (client, addr) = tcp_server.accept().await?;
@@ -158,7 +160,8 @@ async fn run_proxy() -> NadylibResult<()> {
             };
             let mut current_buddy = start_at;
             let mut current_lookup = 0;
-            while let Ok(packet) = sock.read_raw_packet().await {
+            loop {
+                let packet = sock.read_raw_packet().await?;
                 debug!("Received {:?} packet from main", packet.0);
                 trace!("Packet body: {:?}", packet.1);
 
@@ -328,12 +331,15 @@ async fn run_proxy() -> NadylibResult<()> {
 
         worker_tasks.push(worker_read_task);
         worker_tasks.push(proxy_task);
-        let (_, _, others) = select::select_all(worker_tasks).await;
+        let (result, idx, others) = select::select_all(worker_tasks).await;
         for fut in others {
             fut.abort();
         }
 
-        warn!("Lost a connection (probably from client), restarting...");
+        warn!(
+            "Lost a connection (due to {:?}, {}), restarting...",
+            result, idx
+        );
     }
 }
 
