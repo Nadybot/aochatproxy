@@ -5,6 +5,7 @@ on:
     branches:
       - unstable
       - stable
+      - static
     tags:
       - '*'
   pull_request:
@@ -20,7 +21,7 @@ jobs:
       - name: Install cross compilers
         run: |
           sudo apt update
-          sudo apt install gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf -y
+          sudo apt install gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf glibc-static -y
 
       - name: Set up Rust for x86_64
         uses: actions-rs/toolchain@v1
@@ -31,6 +32,8 @@ jobs:
           components: rust-src
 
       - name: Build for x86_64
+        env:
+          RUSTFLAGS: "-C target-feature=+crt-static"
         run: |
           cargo build --release --target=x86_64-unknown-linux-gnu
           strip target/x86_64-unknown-linux-gnu/release/aochatproxy
