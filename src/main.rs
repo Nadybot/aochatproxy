@@ -76,7 +76,7 @@ async fn run_proxy() -> NadylibResult<()> {
 
     loop {
         info!("Waiting for chat server to be available");
-        wait_server_ready(&*config.server_address).await;
+        wait_server_ready(&config.server_address).await;
 
         let identifier_clone = identifier.clone();
 
@@ -151,13 +151,7 @@ async fn run_proxy() -> NadylibResult<()> {
         // If not, we just send them over the normal FC connection
         let proxy_task: JoinHandle<NadylibResult<()>> = spawn(async move {
             // For round robin on private msgs
-            let start_at = {
-                if send_tells_over_main {
-                    0
-                } else {
-                    1
-                }
-            };
+            let start_at = { usize::from(!send_tells_over_main) };
             let mut current_buddy = start_at;
             let mut current_lookup = 0;
             loop {

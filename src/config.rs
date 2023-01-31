@@ -46,7 +46,7 @@ impl Display for ConfigError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::InvalidConfig(s) => f.write_str(s),
-            Self::NotFound(s) => f.write_fmt(format_args!("file {} not found or access denied", s)),
+            Self::NotFound(s) => f.write_fmt(format_args!("file {s} not found or access denied")),
         }
     }
 }
@@ -57,9 +57,9 @@ impl Config {
         let mut next_number = 1;
 
         loop {
-            let mut username = var(format!("WORKER{}_USERNAME", next_number));
-            let mut password = var(format!("WORKER{}_PASSWORD", next_number));
-            let character = var(format!("WORKER{}_CHARACTERNAME", next_number));
+            let mut username = var(format!("WORKER{next_number}_USERNAME"));
+            let mut password = var(format!("WORKER{next_number}_PASSWORD"));
+            let character = var(format!("WORKER{next_number}_CHARACTERNAME"));
 
             if character.is_err() {
                 break;
@@ -153,9 +153,8 @@ impl Config {
 }
 
 pub fn load_from_file(path: &str) -> Result<Config, ConfigError> {
-    let config: Config;
     let content = read_to_string(path).map_err(|_| ConfigError::NotFound(path.to_string()))?;
-    config = DeJson::deserialize_json(&content)
+    let config: Config = DeJson::deserialize_json(&content)
         .map_err(|e| ConfigError::InvalidConfig(e.to_string()))?;
     Ok(config)
 }
