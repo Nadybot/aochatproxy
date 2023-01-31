@@ -1,13 +1,14 @@
-use crate::communication::SendMode;
-
-use log::warn;
-use nanoserde::DeJson;
 use std::{
     env::{args, set_var, var},
     fmt::{Display, Formatter, Result as FmtResult},
     fs::read_to_string,
     path::Path,
 };
+
+use log::warn;
+use nanoserde::DeJson;
+
+use crate::communication::SendMode;
 
 #[derive(Clone, Debug, DeJson)]
 pub struct AccountData {

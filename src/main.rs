@@ -1,4 +1,11 @@
 #![deny(clippy::pedantic)]
+use std::{
+    net::{Ipv4Addr, SocketAddrV4},
+    process::exit,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
 use dashmap::DashSet;
 use libc::{c_int, sighandler_t, signal, SIGINT, SIGTERM};
 use log::{debug, error, info, trace, warn};
@@ -20,13 +27,6 @@ use tokio::{
     time::{sleep, Duration},
 };
 use worker::WorkerHandle;
-
-use std::{
-    net::{Ipv4Addr, SocketAddrV4},
-    process::exit,
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
 
 mod communication;
 mod config;

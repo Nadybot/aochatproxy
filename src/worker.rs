@@ -1,4 +1,4 @@
-use crate::config::Config;
+use std::{fmt, sync::Arc};
 
 use dashmap::{DashMap, DashSet};
 use log::{debug, error, info, trace};
@@ -17,7 +17,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-use std::{fmt, sync::Arc};
+use crate::config::Config;
 
 // An actor-like struct
 struct Worker {
