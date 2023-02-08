@@ -15,6 +15,10 @@ pub struct AccountData {
     pub username: String,
     pub password: String,
     pub character: String,
+    #[nserde(default)]
+    pub unfreeze_username: Option<String>,
+    #[nserde(default)]
+    pub unfreeze_password: Option<String>,
 }
 
 #[derive(Clone, DeJson, Debug)]
@@ -35,6 +39,10 @@ pub struct Config {
     pub relay_worker_tells: bool,
     #[nserde(default)]
     pub default_mode: SendMode,
+    #[nserde(default = "false")]
+    pub auto_unfreeze_accounts: bool,
+    #[nserde(default = "true")]
+    pub unfreeze_accounts_with_proxy: bool,
 }
 
 #[allow(clippy::module_name_repetitions)]
@@ -61,6 +69,8 @@ impl Config {
             let mut username = var(format!("WORKER{next_number}_USERNAME"));
             let mut password = var(format!("WORKER{next_number}_PASSWORD"));
             let character = var(format!("WORKER{next_number}_CHARACTERNAME"));
+            let unfreeze_username = var(format!("WORKER{next_number}_UNFREEZE_USERNAME")).ok();
+            let unfreeze_password = var(format!("WORKER{next_number}_UNFREEZE_PASSWORD")).ok();
 
             if character.is_err() {
                 break;
@@ -81,6 +91,8 @@ impl Config {
                 username: username.unwrap(),
                 password: password.unwrap(),
                 character: character.unwrap(),
+                unfreeze_username,
+                unfreeze_password,
             };
             self.accounts.push(account);
             next_number += 1;
@@ -121,6 +133,18 @@ impl Config {
                 "round-robin" => self.default_mode = SendMode::RoundRobin,
                 "by-charid" => self.default_mode = SendMode::ByCharId,
                 _ => {}
+            }
+        }
+        if let Ok(unfreeze_accounts) = var("AUTO_UNFREEZE_ACCOUNTS") {
+            if let Ok(u) = unfreeze_accounts.parse() {
+                self.auto_unfreeze_accounts = u;
+                changed += 1;
+            }
+        }
+        if let Ok(with_proxy) = var("UNFREEZE_ACCOUNTS_WITH_PROXY") {
+            if let Ok(w) = with_proxy.parse() {
+                self.unfreeze_accounts_with_proxy = w;
+                changed += 1;
             }
         }
         if let Ok(level) = var("RUST_LOG") {

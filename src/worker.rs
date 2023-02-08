@@ -1,4 +1,4 @@
-use std::{fmt, sync::Arc};
+use std::{fmt, sync::Arc, time::Duration};
 
 use dashmap::{DashMap, DashSet};
 use log::{debug, error, info, trace};
@@ -6,8 +6,8 @@ use nadylib::{
     client_socket::SocketSendHandle,
     packets::{
         BuddyAddPacket, BuddyRemovePacket, BuddyStatusPacket, IncomingPacket, LoginCharlistPacket,
-        LoginSeedPacket, LoginSelectPacket, MsgPrivatePacket, OutgoingPacket, PacketType,
-        PingPacket, SerializedPacket,
+        LoginErrorPacket, LoginSeedPacket, LoginSelectPacket, MsgPrivatePacket, OutgoingPacket,
+        PacketType, PingPacket, SerializedPacket,
     },
     AOSocket, Result, SocketConfig,
 };
@@ -15,9 +15,10 @@ use tokio::{
     spawn,
     sync::{mpsc, oneshot, Notify},
     task::JoinHandle,
+    time::sleep,
 };
 
-use crate::config::Config;
+use crate::{config::Config, unfreeze::Unfreezer};
 
 // An actor-like struct
 struct Worker {
@@ -49,6 +50,7 @@ impl Worker {
         packet_sender: SocketSendHandle,
         logged_in: Arc<Notify>,
         worker_ids: Arc<DashSet<u32>>,
+        unfreezer: Unfreezer,
     ) -> (Self, JoinHandle<Result<()>>) {
         let conf = SocketConfig::default().keepalive(id != 0);
 
@@ -78,6 +80,7 @@ impl Worker {
                 buddies.clone(),
                 pending_buddies.clone(),
                 worker_ids.clone(),
+                unfreezer,
             ))
         };
 
@@ -163,9 +166,12 @@ async fn worker_receive_loop(
     buddies: Arc<DashSet<u32>>,
     pending_buddies: Arc<DashMap<u32, u32>>,
     worker_ids: Arc<DashSet<u32>>,
+    unfreezer: Unfreezer,
 ) -> Result<()> {
     let account = config.accounts[id - 1].clone();
     let identifier = format!(r#"{{"id": {}, "name": {:?}}}"#, id, account.character);
+
+    let mut unfreeze_attempted = false;
 
     loop {
         let (packet_type, body) = socket.read_raw_packet().await?;
@@ -179,8 +185,50 @@ async fn worker_receive_loop(
                 packet_sender.send_raw(packet_type, body).await?;
             }
             PacketType::LoginError => {
-                error!("{} failed to log in", account.character);
-                break;
+                let error = LoginErrorPacket::load(&body)?;
+
+                error!("{} failed to log in ({})", account.character, error.message);
+
+                if error.message.contains("Account system denies login")
+                    && config.auto_unfreeze_accounts
+                    && !unfreeze_attempted
+                {
+                    info!(
+                        "Account {} is frozen, attempting to unfreeze",
+                        account.username
+                    );
+
+                    if let Ok(unfreeze_result) = unfreezer
+                        .unfreeze(
+                            account
+                                .unfreeze_username
+                                .as_ref()
+                                .unwrap_or(&account.username),
+                            account
+                                .unfreeze_password
+                                .as_ref()
+                                .unwrap_or(&account.password),
+                        )
+                        .await
+                    {
+                        if !unfreeze_result.should_continue() {
+                            break;
+                        };
+
+                        info!(
+                            "Account {} unfrozen, waiting 5 seconds before reconnecting",
+                            account.username
+                        );
+
+                        sleep(Duration::from_secs(5)).await;
+                    };
+
+                    unfreeze_attempted = true;
+
+                    socket.reconnect().await?;
+                } else {
+                    break;
+                }
             }
             PacketType::ClientName | PacketType::MsgSystem | PacketType::ClientLookup => {
                 debug!(
@@ -283,10 +331,19 @@ impl WorkerHandle {
         packet_sender: SocketSendHandle,
         logged_in: Arc<Notify>,
         worker_ids: Arc<DashSet<u32>>,
+        unfreezer: Unfreezer,
     ) -> (Self, JoinHandle<Result<()>>) {
         let (sender, receiver) = mpsc::channel(1000);
-        let (worker, task) =
-            Worker::new(id, config, receiver, packet_sender, logged_in, worker_ids).await;
+        let (worker, task) = Worker::new(
+            id,
+            config,
+            receiver,
+            packet_sender,
+            logged_in,
+            worker_ids,
+            unfreezer,
+        )
+        .await;
         spawn(run_worker(worker));
 
         (Self { id, sender }, task)

@@ -17,6 +17,8 @@ Put the following in a file called `config.json`:
   "send_tells_over_main": false,
   "relay_worker_tells": true,
   "default_mode": "round-robin",
+  "auto_unfreeze_accounts": true,
+  "unfreeze_accounts_with_proxy": true,
   "accounts": [
     {
       "username": "myaccount1",

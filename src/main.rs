@@ -31,6 +31,7 @@ use worker::WorkerHandle;
 mod communication;
 mod config;
 mod select;
+mod unfreeze;
 mod worker;
 
 async fn wait_server_ready(addr: &str) {
@@ -62,6 +63,8 @@ async fn run_proxy() -> NadylibResult<()> {
         .collect();
 
     let default_mode = config.default_mode;
+
+    let unfreezer = unfreeze::Unfreezer::new(config.unfreeze_accounts_with_proxy);
 
     let identifier = format!(
         concat!(
@@ -102,6 +105,7 @@ async fn run_proxy() -> NadylibResult<()> {
                 handle,
                 logged_in.clone(),
                 worker_ids.clone(),
+                unfreezer.clone(),
             )
             .await;
             workers.push(worker);
@@ -127,6 +131,7 @@ async fn run_proxy() -> NadylibResult<()> {
             sock.get_sender(),
             logged_in.clone(),
             worker_ids.clone(),
+            unfreezer.clone(),
         )
         .await;
         workers.insert(0, main_worker);

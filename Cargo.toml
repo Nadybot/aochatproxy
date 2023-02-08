@@ -1,6 +1,6 @@
 [package]
 name = "aochatproxy"
-version = "5.0.1"
+version = "5.1.0"
 authors = ["Jens Reidel <adrian@travitia.xyz>"]
 edition = "2021"
 
@@ -9,10 +9,14 @@ edition = "2021"
 [dependencies]
 dashmap = { version = "5.3", default-features = false }
 env_logger = { version = "0.10", default-features = false, features = ["humantime"] }
+hyper = { version = "0.14", default-features = false, features = ["http1", "tcp", "client"] }
+hyper-rustls = { version = "0.23", default-features = false, features = ["http1", "tls12", "webpki-roots", "tokio-runtime"] }
+hyper-proxy = { git = "https://github.com/Gelbpunkt/hyper-proxy", default-features = false, features = ["rustls-webpki"] }
 libc = { version = "0.2", default-features = false }
 log = "0.4"
 nadylib = { git = "https://github.com/Nadybot/nadylib", branch = "unstable", default-features = false, features = ["async"] }
 nanoserde = "0.1"
+serde_urlencoded = "0.7"
 tokio = { version = "1", default-features = false, features = ["rt-multi-thread"] }
 
 [profile.release]
