@@ -3,6 +3,7 @@ use std::{fmt, sync::Arc, time::Duration};
 use dashmap::{DashMap, DashSet};
 use log::{debug, error, info, trace};
 use nadylib::{
+    account::{AccountManager, AccountManagerHttpClient},
     client_socket::SocketSendHandle,
     packets::{
         BuddyAddPacket, BuddyRemovePacket, BuddyStatusPacket, IncomingPacket, LoginCharlistPacket,
@@ -18,7 +19,7 @@ use tokio::{
     time::sleep,
 };
 
-use crate::{config::Config, unfreeze::Unfreezer};
+use crate::config::Config;
 
 // An actor-like struct
 struct Worker {
@@ -50,11 +51,11 @@ impl Worker {
         packet_sender: SocketSendHandle,
         logged_in: Arc<Notify>,
         worker_ids: Arc<DashSet<u32>>,
-        unfreezer: Unfreezer,
+        http_client: AccountManagerHttpClient,
     ) -> (Self, JoinHandle<Result<()>>) {
         let conf = SocketConfig::default().keepalive(id != 0);
 
-        let socket = AOSocket::connect(&*config.server_address.clone(), conf)
+        let socket = AOSocket::connect(&*config.server_address.clone(), &conf)
             .await
             .unwrap();
 
@@ -80,7 +81,7 @@ impl Worker {
                 buddies.clone(),
                 pending_buddies.clone(),
                 worker_ids.clone(),
-                unfreezer,
+                http_client,
             ))
         };
 
@@ -166,7 +167,7 @@ async fn worker_receive_loop(
     buddies: Arc<DashSet<u32>>,
     pending_buddies: Arc<DashMap<u32, u32>>,
     worker_ids: Arc<DashSet<u32>>,
-    unfreezer: Unfreezer,
+    http_client: AccountManagerHttpClient,
 ) -> Result<()> {
     let account = config.accounts[id - 1].clone();
     let identifier = format!(r#"{{"id": {}, "name": {:?}}}"#, id, account.character);
@@ -198,19 +199,19 @@ async fn worker_receive_loop(
                         account.username
                     );
 
-                    if let Ok(unfreeze_result) = unfreezer
-                        .unfreeze(
-                            account
-                                .unfreeze_username
-                                .as_ref()
-                                .unwrap_or(&account.username),
-                            account
-                                .unfreeze_password
-                                .as_ref()
-                                .unwrap_or(&account.password),
-                        )
-                        .await
-                    {
+                    let mut account_manager = AccountManager::from_client(http_client.clone())
+                        .username(&account.username)
+                        .password(&account.password);
+
+                    if let Some(main_username) = account.unfreeze_username.as_ref() {
+                        account_manager = account_manager.main_username(main_username);
+                    }
+
+                    if let Some(main_password) = account.unfreeze_password.as_ref() {
+                        account_manager = account_manager.main_password(main_password);
+                    }
+
+                    if let Ok(unfreeze_result) = account_manager.reactivate().await {
                         if !unfreeze_result.should_continue() {
                             break;
                         };
@@ -331,7 +332,7 @@ impl WorkerHandle {
         packet_sender: SocketSendHandle,
         logged_in: Arc<Notify>,
         worker_ids: Arc<DashSet<u32>>,
-        unfreezer: Unfreezer,
+        http_client: AccountManagerHttpClient,
     ) -> (Self, JoinHandle<Result<()>>) {
         let (sender, receiver) = mpsc::channel(1000);
         let (worker, task) = Worker::new(
@@ -341,7 +342,7 @@ impl WorkerHandle {
             packet_sender,
             logged_in,
             worker_ids,
-            unfreezer,
+            http_client,
         )
         .await;
         spawn(run_worker(worker));

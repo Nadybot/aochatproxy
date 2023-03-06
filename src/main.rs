@@ -10,6 +10,7 @@ use dashmap::DashSet;
 use libc::{c_int, sighandler_t, signal, SIGINT, SIGTERM};
 use log::{debug, error, info, trace, warn};
 use nadylib::{
+    account::AccountManagerHttpClient,
     client_socket::SocketSendHandle,
     models::Channel,
     packets::{
@@ -31,7 +32,6 @@ use worker::WorkerHandle;
 mod communication;
 mod config;
 mod select;
-mod unfreeze;
 mod worker;
 
 async fn wait_server_ready(addr: &str) {
@@ -64,7 +64,7 @@ async fn run_proxy() -> NadylibResult<()> {
 
     let default_mode = config.default_mode;
 
-    let unfreezer = unfreeze::Unfreezer::new(config.unfreeze_accounts_with_proxy);
+    let http_client = AccountManagerHttpClient::new(config.unfreeze_accounts_with_proxy);
 
     let identifier = format!(
         concat!(
@@ -105,7 +105,7 @@ async fn run_proxy() -> NadylibResult<()> {
                 handle,
                 logged_in.clone(),
                 worker_ids.clone(),
-                unfreezer.clone(),
+                http_client.clone(),
             )
             .await;
             workers.push(worker);
@@ -120,10 +120,12 @@ async fn run_proxy() -> NadylibResult<()> {
         info!("Client connected from {}", addr);
 
         // Create a socket from the client
+        // SAFETY: The stream is connected, so it safe to use from_stream
         let mut sock = AOSocket::from_stream(
             client,
-            SocketConfig::default().keepalive(false).limit_tells(false),
-        );
+            &SocketConfig::default().keepalive(false).limit_tells(false),
+        )
+        .unwrap();
 
         let (main_worker, main_task) = WorkerHandle::new(
             0,
@@ -131,7 +133,7 @@ async fn run_proxy() -> NadylibResult<()> {
             sock.get_sender(),
             logged_in.clone(),
             worker_ids.clone(),
-            unfreezer.clone(),
+            http_client.clone(),
         )
         .await;
         workers.insert(0, main_worker);

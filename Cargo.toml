@@ -5,19 +5,21 @@ authors = ["Jens Reidel <adrian@travitia.xyz>"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 dashmap = { version = "5.3", default-features = false }
-env_logger = { version = "0.10", default-features = false, features = ["humantime"] }
-hyper = { version = "0.14", default-features = false, features = ["http1", "tcp", "client"] }
-hyper-rustls = { version = "0.23", default-features = false, features = ["http1", "tls12", "webpki-roots", "tokio-runtime"] }
-hyper-proxy = { git = "https://github.com/Gelbpunkt/hyper-proxy", default-features = false, features = ["rustls-webpki"] }
+env_logger = { version = "0.10", default-features = false, features = [
+    "humantime"
+] }
 libc = { version = "0.2", default-features = false }
 log = "0.4"
-nadylib = { git = "https://github.com/Nadybot/nadylib", branch = "unstable", default-features = false, features = ["async"] }
+nadylib = { git = "https://github.com/Nadybot/nadylib", branch = "unstable", default-features = false, features = [
+    "async",
+    "account-management"
+] }
 nanoserde = "0.1"
-serde_urlencoded = "0.7"
-tokio = { version = "1", default-features = false, features = ["rt-multi-thread"] }
+tokio = { version = "1", default-features = false, features = [
+    "rt-multi-thread"
+] }
 
 [profile.release]
 codegen-units = 1
