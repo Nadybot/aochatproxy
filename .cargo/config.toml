@@ -23,8 +23,8 @@ linker = "arm-linux-gnueabihf-gcc"
 
 [target.x86_64-unknown-freebsd]
 linker = "clang"
-rustflags = ["-C", "link-args=--sysroot=./freebsd_amd64_sysroot --target=x86_64-unknown-freebsd"]
+rustflags = ["-C", "link-args=-fuse-ld=lld --sysroot=./freebsd_amd64_sysroot --target=x86_64-unknown-freebsd"]
 
 [target.aarch64-unknown-freebsd]
 linker = "clang"
-rustflags = ["-C", "link-args=--sysroot=./freebsd_arm64_sysroot --target=aarch64-unknown-freebsd"]
+rustflags = ["-C", "link-args=-fuse-ld=lld --sysroot=./freebsd_arm64_sysroot --target=aarch64-unknown-freebsd"]

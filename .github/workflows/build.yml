@@ -64,7 +64,7 @@ jobs:
 
       - name: Install toolchain
         run: |
-          sudo apt install llvm clang -y
+          sudo apt install llvm clang lld -y
 
       - name: Prepare sysroots
         run: |
