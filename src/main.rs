@@ -22,16 +22,14 @@ use nadylib::{
 use nanoserde::DeJson;
 use tokio::{
     net::{TcpListener, TcpStream},
-    spawn,
     sync::{mpsc::unbounded_channel, Notify},
-    task::JoinHandle,
+    task::JoinSet,
     time::{sleep, Duration},
 };
 use worker::WorkerHandle;
 
 mod communication;
 mod config;
-mod select;
 mod worker;
 
 async fn wait_server_ready(addr: &str) {
@@ -91,25 +89,24 @@ async fn run_proxy() -> NadylibResult<()> {
 
         // List of workers
         let mut workers: Vec<worker::WorkerHandle> = Vec::with_capacity(account_num + 1);
-        let mut worker_tasks: Vec<JoinHandle<NadylibResult<()>>> =
-            Vec::with_capacity(account_num + 1);
+        let mut worker_tasks = JoinSet::new();
 
         // Create all workers
         for (idx, acc) in config.accounts.iter().enumerate() {
             info!("Spawning worker for {}", acc.character);
             let handle = SocketSendHandle::new(worker_sender.clone(), None);
 
-            let (worker, task) = WorkerHandle::new(
+            let worker = WorkerHandle::new(
                 idx + 1,
                 config.clone(),
                 handle,
                 logged_in.clone(),
                 worker_ids.clone(),
                 http_client.clone(),
+                &mut worker_tasks,
             )
             .await;
             workers.push(worker);
-            worker_tasks.push(task);
         }
 
         let addr = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), config.port_number);
@@ -127,22 +124,22 @@ async fn run_proxy() -> NadylibResult<()> {
         )
         .unwrap();
 
-        let (main_worker, main_task) = WorkerHandle::new(
+        let main_worker = WorkerHandle::new(
             0,
             config.clone(),
             sock.get_sender(),
             logged_in.clone(),
             worker_ids.clone(),
             http_client.clone(),
+            &mut worker_tasks,
         )
         .await;
         workers.insert(0, main_worker);
-        worker_tasks.insert(0, main_task);
 
         let sock_to_workers = sock.get_sender();
 
         // Forward stuff from the workers to the main
-        let worker_read_task = spawn(async move {
+        worker_tasks.spawn(async move {
             logged_in_waiter.notified().await;
             info!("Main logged in, relaying packets now");
             while let Some(msg) = worker_receiver.recv().await {
@@ -156,7 +153,7 @@ async fn run_proxy() -> NadylibResult<()> {
 
         // Loop over incoming packets and depending on the type, round robin them
         // If not, we just send them over the normal FC connection
-        let proxy_task: JoinHandle<NadylibResult<()>> = spawn(async move {
+        worker_tasks.spawn(async move {
             // For round robin on private msgs
             let start_at = { usize::from(!send_tells_over_main) };
             let mut current_buddy = start_at;
@@ -330,17 +327,11 @@ async fn run_proxy() -> NadylibResult<()> {
             Ok(())
         });
 
-        worker_tasks.push(worker_read_task);
-        worker_tasks.push(proxy_task);
-        let (result, idx, others) = select::select_all(worker_tasks).await;
-        for fut in others {
-            fut.abort();
-        }
+        // SAFETY: The set is never empty, so None cannot be returned
+        let result = worker_tasks.join_next().await.unwrap();
+        worker_tasks.abort_all();
 
-        warn!(
-            "Lost a connection (due to {:?}, {}), restarting...",
-            result, idx
-        );
+        warn!("Lost a connection (due to {:?}), restarting...", result);
     }
 }
 

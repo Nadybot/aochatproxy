@@ -13,9 +13,8 @@ use nadylib::{
     AOSocket, Result, SocketConfig,
 };
 use tokio::{
-    spawn,
     sync::{mpsc, oneshot, Notify},
-    task::JoinHandle,
+    task::JoinSet,
     time::sleep,
 };
 
@@ -52,7 +51,8 @@ impl Worker {
         logged_in: Arc<Notify>,
         worker_ids: Arc<DashSet<u32>>,
         http_client: AccountManagerHttpClient,
-    ) -> (Self, JoinHandle<Result<()>>) {
+        join_set: &mut JoinSet<Result<()>>,
+    ) -> Self {
         let conf = SocketConfig::default().keepalive(id != 0);
 
         let socket = AOSocket::connect(&*config.server_address.clone(), &conf)
@@ -64,8 +64,8 @@ impl Worker {
         let buddies = Arc::new(DashSet::new());
         let pending_buddies = Arc::new(DashMap::new());
 
-        let task = if id == 0 {
-            spawn(main_receive_loop(
+        if id == 0 {
+            join_set.spawn(main_receive_loop(
                 socket,
                 logged_in,
                 packet_sender.clone(),
@@ -73,7 +73,7 @@ impl Worker {
                 pending_buddies.clone(),
             ))
         } else {
-            spawn(worker_receive_loop(
+            join_set.spawn(worker_receive_loop(
                 id,
                 config,
                 socket,
@@ -85,16 +85,13 @@ impl Worker {
             ))
         };
 
-        (
-            Worker {
-                receiver,
-                buddies,
-                packet_sender: sender,
-                pending_buddies,
-                counter: 0,
-            },
-            task,
-        )
+        Worker {
+            receiver,
+            buddies,
+            packet_sender: sender,
+            pending_buddies,
+            counter: 0,
+        }
     }
 
     async fn handle_message(&mut self, msg: WorkerMessage) {
@@ -333,9 +330,10 @@ impl WorkerHandle {
         logged_in: Arc<Notify>,
         worker_ids: Arc<DashSet<u32>>,
         http_client: AccountManagerHttpClient,
-    ) -> (Self, JoinHandle<Result<()>>) {
+        join_set: &mut JoinSet<Result<()>>,
+    ) -> Self {
         let (sender, receiver) = mpsc::channel(1000);
-        let (worker, task) = Worker::new(
+        let worker = Worker::new(
             id,
             config,
             receiver,
@@ -343,11 +341,13 @@ impl WorkerHandle {
             logged_in,
             worker_ids,
             http_client,
+            join_set,
         )
         .await;
-        spawn(run_worker(worker));
+        // This will terminate gracefully when the channel is closed
+        tokio::spawn(run_worker(worker));
 
-        (Self { id, sender }, task)
+        Self { id, sender }
     }
 
     pub async fn get_total_buddies(&self) -> usize {
