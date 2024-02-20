@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install cross compilers
         run: |
@@ -47,7 +47,7 @@ jobs:
           cp target/armv7-unknown-linux-gnueabihf/release/aochatproxy aochatproxy-linux-armv7
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: aochatproxy-linux
           path: |
@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install toolchain
         run: |
@@ -69,10 +69,10 @@ jobs:
       - name: Prepare sysroots
         run: |
           mkdir freebsd_amd64_sysroot
-          curl -s https://download.freebsd.org/ftp/snapshots/amd64/14.0-CURRENT/base.txz \
+          curl -s https://download.freebsd.org/ftp/snapshots/amd64/15.0-CURRENT/base.txz \
             | tar -xJf - -C freebsd_amd64_sysroot ./lib ./usr/lib ./usr/libdata ./usr/include ./usr/share/keys ./etc
           mkdir freebsd_arm64_sysroot
-          curl -s https://download.freebsd.org/ftp/snapshots/arm64/14.0-CURRENT/base.txz \
+          curl -s https://download.freebsd.org/ftp/snapshots/arm64/15.0-CURRENT/base.txz \
             | tar -xJf - -C freebsd_arm64_sysroot ./lib ./usr/lib ./usr/libdata ./usr/include ./usr/share/keys ./etc
 
       - name: Set up Rust
@@ -94,7 +94,7 @@ jobs:
           cp target/aarch64-unknown-freebsd/release/aochatproxy aochatproxy-freebsd-aarch64
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: aochatproxy-freebsd
           path: |
@@ -106,7 +106,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@master
@@ -121,7 +121,7 @@ jobs:
           cp target/x86_64-apple-darwin/release/aochatproxy aochatproxy-macos
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: aochatproxy-macos
           path: |
@@ -132,7 +132,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@master
@@ -146,7 +146,7 @@ jobs:
           cp target/x86_64-pc-windows-msvc/release/aochatproxy.exe aochatproxy-windows.exe
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: aochatproxy-windows
           path: |
